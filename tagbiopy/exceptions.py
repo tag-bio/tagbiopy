@@ -1,0 +1,4 @@
+
+
+class TagbioPyError(Exception):
+    pass
