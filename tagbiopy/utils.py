@@ -30,15 +30,20 @@ def load_function(filename):
     import importlib.machinery
     import inspect
 
-    print(filename)
-
     m = importlib.machinery.SourceFileLoader('tgb', filename).load_module()
+    _fs = inspect.getmembers(m, inspect.isfunction)
+    for _function_name, _function in _fs:
+        _function_args = inspect.getfullargspec(_function).args
+        if _function_args == ['tag_data', 'tag_result']:
+            return _function
 
-    _fs = [v for v in inspect.getmembers(m, inspect.isfunction)].pop()
-
-    function_name, function = _fs
-
-    return function
+    message = 'Invalid function'
+    if len(_fs) > 1:
+        message += 's'
+    message += f' in {filename}'
+    message += '\nFound {}'.format(', '.join([v[0] for v in _fs]))
+    message += '\nPlease create a function with (TagbioData, TagbioResult) arguments.'
+    raise TagbioPyError(message)
 
 
 def serialize(packet):
@@ -66,7 +71,7 @@ def set_payload(target='protocol_instance', api_key=None, **kwargs):
 
     ret.update(kwargs)
 
-    return json.dumps(ret)
+    return json.dumps(ret, indent=2)
 
 
 def turn_to_df(content):
@@ -96,7 +101,7 @@ class FC:
         self.script = self._packet.get('script')
         self.test_passed_protocol()
 
-        # Take care of passthrought arguments
+        # Take care of passthrough arguments
         self.passthrough_arguments = self._packet.get('passthrough_arguments')
 
         # Payload
@@ -108,7 +113,7 @@ class FC:
     def __repr__(self):
         ret = 'class {}: name: {}, url: {}'.format(self.__class__.__name__, self.name, self.url)
         ret += ', packet: \n'
-        ret += json.dumps(self._packet)
+        ret += json.dumps(self._packet, indent=2)
         return '<{}>'.format(ret)
 
     def test_passed_protocol(self):
@@ -122,7 +127,9 @@ class FC:
                 _protocol_instance = {'protocol_instance': self.protocol_instance}
                 self._payload = set_payload(target='protocol_instance', **_protocol_instance)
             elif self.script:
-                self._payload = set_payload(target='script', **self.script)
+                _script = self.script
+                _script.update({'passthrough_arguments': self.passthrough_arguments})
+                self._payload = set_payload(target='script', **_script)
         return self._payload
 
     @property
@@ -155,38 +162,96 @@ class TagbioData:
             self._r = requests.post(self.url, data=self.payload)
         return self._r
 
-    def get_data_frame(self, entity=None, collection=None):
-        if entity is None and collection is None:
+    def get_data_frame(self, entity_id=None, collection=None):
+        if entity_id is None and collection is None:
             return self.df
 
-        columns = [entity]
+        columns = [entity_id]
         values = [v for v in self.df.columns if v.startswith(collection)]
         columns.extend(values)
 
         ret = self.df.copy()[columns]
-        ret = ret.set_index(entity)
+        ret = ret.set_index(entity_id)
         return ret
 
 
 class TagbioResult:
 
-    _extensions = ('html', 'jpeg', 'pdf', 'png', 'svg')
-    def __init__(self, df, extension='pdf'):
+    _extensions = ('html', 'jpeg', 'pdf', 'png', 'svg', 'csv')
+
+    def __init__(self, extension='pdf', path=None, path_mutable=True):
+        """
+        :param extension: str, type of output where the df is going to go
+        :param path: path, private, where the df will be stored
+        """
 
         if extension not in self._extensions:
-            message = f'{extension} not valid extension.'
-            message += 'Please choose from {}'.format(', '.join(self._extensions))
+            message = f'Extension "{extension}" not valid.'
+            message += ' Please choose from {}'.format(', '.join(self._extensions))
             raise TagbioPyError(message)
 
         self.extension = extension
-        self.df = df
+        # Keep the path private
+        self.__path = path
+        self._path_mutable = path_mutable
 
-        self._path = None
+        # For lazy loading of the dataframe
+        self._df = None
+        # Handle on the figure plotted from the _df
+        self._fig = None
+
+    def __repr__(self):
+        ret = '<class {}:'.format(self.__class__.__name__)
+        ret += f' extension: {self.extension}'
+        if self.__path is not None:
+            ret += ', path (private): {}'.format(self.__path)
+        if self.df is not None:
+            ret += ', dataframe shape: {}'.format(str(self.df.shape))
+        ret += '>'
+        return ret
+
+    @property
+    def df(self):
+        return self._df
+
+    @df.deleter
+    def df(self):
+        del self._df
+
+    @df.setter
+    def df(self, data_frame):
+        self._df = data_frame
+
+    @property
+    def fig(self):
+        return self._fig
+
+    @fig.deleter
+    def fig(self):
+        del self._fig
+
+    @fig.setter
+    def fig(self, value):
+        self._fig = value
 
     @property
     def path(self):
-        return self._path
+        return self.__path
+
+    @path.deleter
+    def path(self):
+        if self._path_mutable:
+            del self.__path
 
     @path.setter
     def path(self, value):
-        self._path = value
+        if self._path_mutable:
+            self.__path = value
+
+    def save(self):
+        print(self)
+        if self.extension == 'csv':
+            float_format = '%.4f'
+            self.df.to_csv(self.path, float_format=float_format)
+        else:
+            self.fig.savefig(self.path, format=self.extension)
