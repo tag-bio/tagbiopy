@@ -37,7 +37,7 @@ def heatmap(df, annotate_values=False, cbar_kw=None, cbarlabel=""):
             for j in range(n_rows):
                 text = ax.text(j, i, df.iloc[i, j], ha="center", va="center", color="w")
 
-    ax.set_title("Correlation plot", fontsize=24)
+    #ax.set_title("Correlation plot", fontsize=24)
     fig.tight_layout()
 
     return fig
