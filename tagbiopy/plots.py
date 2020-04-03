@@ -1,5 +1,7 @@
-import matplotlib.pyplot as plt
 import numpy as np
+
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 
 def _create_fig_and_ax():
@@ -40,4 +42,14 @@ def heatmap(df, annotate_values=False, cbar_kw=None, cbarlabel=""):
     #ax.set_title("Correlation plot", fontsize=24)
     fig.tight_layout()
 
+    return fig
+
+
+def heatmap_plotly(df):
+    fig = go.Figure(data=go.Heatmap(
+        z=df,
+        x=df.columns,
+        y=df.index,
+        hoverongaps=False)
+    )
     return fig
