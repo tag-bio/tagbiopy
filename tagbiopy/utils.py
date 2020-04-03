@@ -250,15 +250,25 @@ class TagbioResult:
 
     def save(self):
         print(self)
+        import matplotlib.figure
+        import plotly.graph_objects
+
         if self.extension == 'csv':
             float_format = '%.4f'
             self.df.to_csv(self.path, float_format=float_format)
+        elif self.extension == 'html':
+            if isinstance(self.fig, plotly.graph_objs.Figure):
+                self.fig.write_html(self.path)
+            else:
+                message = 'Please create a plotly figure and save it as html'
+                raise TagbioPyError(message)
         else:
-            import matplotlib.figure
             if isinstance(self.fig, matplotlib.figure.Figure):
                 self.fig.savefig(self.path, format=self.extension)
+            elif isinstance(self.fig, plotly.graph_objs.Figure):
+                self.fig.write_image(self.path, format=self.extension)
             else:
-                import plotly.graph_objects
-                if isinstance(self.fig, plotly.graph_objs.Figure):
-                    self.fig.write_image(self.path, format=self.extension)
+                message = 'Please create either a matplotlib or plotly figure'
+                raise TagbioPyError(message)
+
 
