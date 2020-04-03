@@ -2,3 +2,8 @@ matplotlib
 pandas
 pyyaml
 requests
+plotly
+# for plotyly to work
+nbformat
+# Need orca from https://github.com/plotly/orca and then
+psutil
