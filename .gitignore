@@ -65,6 +65,10 @@ var/
 .installed.cfg
 *.egg
 
+# Jupyter
+.ipynb_checkpoints
+Untitled*.ipynb
+
 # Virtualenv
 venv
 
