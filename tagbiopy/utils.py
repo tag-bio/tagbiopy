@@ -254,4 +254,11 @@ class TagbioResult:
             float_format = '%.4f'
             self.df.to_csv(self.path, float_format=float_format)
         else:
-            self.fig.savefig(self.path, format=self.extension)
+            import matplotlib.figure
+            if isinstance(self.fig, matplotlib.figure.Figure):
+                self.fig.savefig(self.path, format=self.extension)
+            else:
+                import plotly.graph_objects
+                if isinstance(self.fig, plotly.graph_objs.Figure):
+                    self.fig.write_image(self.path, format=self.extension)
+
