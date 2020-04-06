@@ -1,12 +1,13 @@
 import numpy as np
 
-import matplotlib.pyplot as plt
+import matplotlib.figure
 import plotly.graph_objects as go
 
 
 def _create_fig_and_ax():
-    fig, ax = plt.subplots()
+    fig = matplotlib.figure.Figure()
     fig.set_size_inches(18.5, 10.5)
+    ax = fig.subplots()
     return fig, ax
 
 
@@ -41,6 +42,31 @@ def heatmap(df, annotate_values=False, cbar_kw=None, cbarlabel=""):
 
     #ax.set_title("Correlation plot", fontsize=24)
     fig.tight_layout()
+
+    return fig
+
+
+def r2_plot(y, y_hat, title=None):
+    from sklearn.metrics import r2_score
+
+    fig, ax = _create_fig_and_ax()
+
+    ax.set_aspect(.9)
+    ax.scatter(y_hat, y)
+    ax.plot([y.min(), y.max()], [y.min(), y.max()], 'k-', color='r')
+
+    r2 = r2_score(y, y_hat)
+
+    r2_annotation = r'$r^2 = {:.2f}\%$'.format(r2 * 100)
+    ax.text(0.1, 2.5, r2_annotation, color='r', fontsize=24)
+    xlabel = y_hat.name.replace('->', '$\\rightarrow$')
+    ylabel = y.name.replace('->', '$\\rightarrow$')
+    ax.set_xlabel(xlabel, fontsize=20)
+    ax.set_ylabel(ylabel, fontsize=20)
+    ax.grid(which='major')
+
+    if title is not None:
+        ax.set_title(title, fontsize=24)
 
     return fig
 
