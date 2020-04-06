@@ -37,7 +37,6 @@ def main():
 
     # Initialize tag_data
     tag_data = TagbioData(args.fc_data)
-    tag_data.entity_id = 'patient_id'
 
     print_ts(tag_data.fc_packet, flush=True)
 
@@ -48,10 +47,7 @@ def main():
     user_function = load_function(args.user_function)
 
     # Execute user_function
-    tag_result = user_function(tag_data, tag_result)
-
-    # Save figure
-    tag_result.save()
+    user_function(tag_data, tag_result)
 
     print_ts('Done', flush=True)
 
