@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 
@@ -46,6 +47,18 @@ def load_function(filename):
     raise TagbioPyError(message)
 
 
+def now():
+    return datetime.datetime.now().strftime('%F %X')
+
+
+def ts(s):
+    return '{}: {}'.format(now(), s)
+
+
+def print_ts(s, **kwargs):
+    print(ts(s), **kwargs)
+
+
 def serialize(packet):
     if isinstance(packet, str):
         packet = json.loads(packet)
@@ -74,15 +87,22 @@ def set_payload(target='protocol_instance', api_key=None, **kwargs):
     return json.dumps(ret, indent=2)
 
 
-def turn_to_df(content):
+def turn_to_df(content, entity_id=None):
     import pandas as pd
     import io
 
     encoded_content = str(content, 'utf-8')
-    return pd.read_csv(io.StringIO(encoded_content))
+    ret = pd.read_csv(io.StringIO(encoded_content))
+    if entity_id is not None:
+        try:
+            ret = ret.set_index(entity_id).sort_index()
+        except KeyError:
+            raise TagbioPyError(f'{entity_id} not valid entity_id.')
+
+    return ret
 
 
-class FC:
+class FCPacket:
 
     def __init__(self, filename):
 
@@ -140,39 +160,36 @@ class FC:
             raise TagbioPyError('No url in the packet: {}'.format(str(self._packet)))
         return self._url
 
-
-class TagbioData:
-
-    def __init__(self, url, payload):
-        self.url = url
-        self.payload = payload
-
-        self._r = None
-        self._df = None
-
-    @property
-    def df(self):
-        if self._df is None:
-            self._df = turn_to_df(self.r.content)
-        return self._df
-
     @property
     def r(self):
         if self._r is None:
             self._r = requests.post(self.url, data=self.payload)
         return self._r
 
-    def get_data_frame(self, entity_id=None, collection=None):
-        if entity_id is None and collection is None:
-            return self.df
 
-        columns = [entity_id]
-        values = [v for v in self.df.columns if v.startswith(collection)]
-        columns.extend(values)
+class TagbioData:
 
-        ret = self.df.copy()[columns]
-        ret = ret.set_index(entity_id)
-        return ret
+    def __init__(self, fc_packet, entity_id=None, clean_up_collections=True):
+        self.fc_packet = FCPacket(fc_packet)
+        self.entity_id = entity_id
+        self.clean_up_collections = clean_up_collections
+
+        self._df = None
+
+    @property
+    def df(self):
+        if self._df is None:
+            self._df = turn_to_df(self.fc_packet.r.content, self.entity_id)
+            if self.clean_up_collections:
+                columns = []
+                for v in self._df.columns:
+                    if '=' in v:
+                        collection, variable = [v.strip() for v in v.split('=')]
+                    else:
+                        variable = v
+                    columns.append(variable)
+                self._df.columns = columns
+        return self._df
 
 
 class TagbioResult:
@@ -203,6 +220,8 @@ class TagbioResult:
     def __repr__(self):
         ret = '<class {}:'.format(self.__class__.__name__)
         ret += f' extension: {self.extension}'
+        if self.fig is not None:
+            ret += ', fig: {}'.format(type(self.fig))
         if self.__path is not None:
             ret += ', path (private): {}'.format(self.__path)
         if self.df is not None:
@@ -249,7 +268,6 @@ class TagbioResult:
             self.__path = value
 
     def save(self):
-        print(self)
         import matplotlib.figure
         import plotly.graph_objects
 
@@ -270,5 +288,3 @@ class TagbioResult:
             else:
                 message = 'Please create either a matplotlib or plotly figure'
                 raise TagbioPyError(message)
-
-
