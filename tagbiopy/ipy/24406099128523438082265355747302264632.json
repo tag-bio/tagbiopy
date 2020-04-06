@@ -1,0 +1,538 @@
+{
+  "fc": {
+    "name": "fc-local",
+    "url": "http://localhost:8000/",
+    "api_key": ""
+  },
+  "script": {
+    "script": true,
+    "zip": true,
+    "method": "download",
+    "process_count": 8,
+    "analysis_variables": [
+      {
+        "collection": {
+          "name": "patient_id",
+          "name_type": "simple"
+        },
+        "multiple_arguments": "OR",
+        "variable_type": "categorical"
+      },
+      {
+        "collection": {
+          "name": "tcr_expansion_a_b",
+          "name_type": "simple"
+        },
+        "variable": {
+          "name": "log Default outcome: N Expanded Clones that were TILs, A-\u003eB",
+          "name_type": "simple"
+        },
+        "variable_type": "numeric"
+      },
+      {
+        "variables": [
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log 5-factor score",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log Age",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log Baseline neutrophil to lymphocyte ratio",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log Clonality: PBMC, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log Clonality: Tumor, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log Diversity: PBMC, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log Diversity: Tumor, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log expressed_missense_snv_count",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log expressed_neoantigen_count",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log missense_snv_count",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log neoantigen_count",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log Number of chemo regimens total",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log Productive Unique TCRs (cnt): PBMC, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log T-cell fraction: PBMC, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log T-cell fraction: Tumor, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log Time since last chemotherapy",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: log Top Clone Freq(%): PBMC, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: 5-factor score",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: Age",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: Baseline neutrophil to lymphocyte ratio",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: Clonality: PBMC, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: Clonality: Tumor, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: Diversity: PBMC, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: Diversity: Tumor, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: Number of chemo regimens total",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: Productive Unique TCRs (cnt): PBMC, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: T-cell fraction: PBMC, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: T-cell fraction: Tumor, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: Time since last chemotherapy",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: Top Clone Freq(%): PBMC, Time point A",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: expressed_missense_snv_count",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: expressed_neoantigen_count",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: missense_snv_count",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          },
+          {
+            "collection": {
+              "name": "Model input",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "Model input: neoantigen_count",
+              "name_type": "simple"
+            },
+            "variable_type": "numeric"
+          }
+        ],
+        "variable_type": "numeric-array"
+      },
+      {
+        "operator": "OR",
+        "variables": [
+          {
+            "collection": {
+              "name": "Model input: Albumin \u003c 4",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "0",
+              "name_type": "simple"
+            },
+            "multiple_arguments": "OR",
+            "variable_type": "categorical"
+          },
+          {
+            "collection": {
+              "name": "Model input: Albumin \u003c 4",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "1",
+              "name_type": "simple"
+            },
+            "multiple_arguments": "OR",
+            "variable_type": "categorical"
+          }
+        ],
+        "variable_type": "categorical-array"
+      },
+      {
+        "operator": "OR",
+        "variables": [
+          {
+            "collection": {
+              "name": "Model input: Prior BCG",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "0",
+              "name_type": "simple"
+            },
+            "multiple_arguments": "OR",
+            "variable_type": "categorical"
+          },
+          {
+            "collection": {
+              "name": "Model input: Prior BCG",
+              "name_type": "simple"
+            },
+            "variable": {
+              "name": "1",
+              "name_type": "simple"
+            },
+            "multiple_arguments": "OR",
+            "variable_type": "categorical"
+          }
+        ],
+        "variable_type": "categorical-array"
+      }
+    ],
+    "queries": [],
+    "sdk": {
+      "value": "python",
+      "variable_type": "static"
+    },
+    "plugin": {
+      "value": "python/elastic_net_cross_validation.py",
+      "variable_type": "static"
+    },
+    "output_type": {
+      "value": "png",
+      "variable_type": "static"
+    }
+  },
+  "passthrough_arguments": {
+    "model_input_prior_bcg": [
+      0,
+      1
+    ],
+    "model_input_variables": [
+      "Model input: log 5-factor score",
+      "Model input: log Age",
+      "Model input: log Baseline neutrophil to lymphocyte ratio",
+      "Model input: log Clonality: PBMC, Time point A",
+      "Model input: log Clonality: Tumor, Time point A",
+      "Model input: log Diversity: PBMC, Time point A",
+      "Model input: log Diversity: Tumor, Time point A",
+      "Model input: log expressed_missense_snv_count",
+      "Model input: log expressed_neoantigen_count",
+      "Model input: log missense_snv_count",
+      "Model input: log neoantigen_count",
+      "Model input: log Number of chemo regimens total",
+      "Model input: log Productive Unique TCRs (cnt): PBMC, Time point A",
+      "Model input: log T-cell fraction: PBMC, Time point A",
+      "Model input: log T-cell fraction: Tumor, Time point A",
+      "Model input: log Time since last chemotherapy",
+      "Model input: log Top Clone Freq(%): PBMC, Time point A",
+      "Model input: 5-factor score",
+      "Model input: Age",
+      "Model input: Baseline neutrophil to lymphocyte ratio",
+      "Model input: Clonality: PBMC, Time point A",
+      "Model input: Clonality: Tumor, Time point A",
+      "Model input: Diversity: PBMC, Time point A",
+      "Model input: Diversity: Tumor, Time point A",
+      "Model input: Number of chemo regimens total",
+      "Model input: Productive Unique TCRs (cnt): PBMC, Time point A",
+      "Model input: T-cell fraction: PBMC, Time point A",
+      "Model input: T-cell fraction: Tumor, Time point A",
+      "Model input: Time since last chemotherapy",
+      "Model input: Top Clone Freq(%): PBMC, Time point A",
+      "Model input: expressed_missense_snv_count",
+      "Model input: expressed_neoantigen_count",
+      "Model input: missense_snv_count",
+      "Model input: neoantigen_count"
+    ],
+    "model_outcome_collection": [
+      "tcr_expansion_a_b"
+    ],
+    "model_outcome_variable": [
+      "log Default outcome: N Expanded Clones that were TILs, A-\u003eB"
+    ],
+    "model_input_albumin_lt_4": [
+      0,
+      1
+    ]
+  }
+}
