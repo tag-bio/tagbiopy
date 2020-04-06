@@ -2,6 +2,7 @@ matplotlib
 pandas
 pyyaml
 requests
+sklearn
 plotly
 # for plotyly to work
 nbformat

@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-
+import json
 import argparse
+import datetime
 
-from tagbiopy.utils import load_function, FC, TagbioData, TagbioResult, TagbioPyError
+from tagbiopy.utils import load_function, TagbioData, TagbioResult, print_ts
 
 
 def parse_arguments():
@@ -25,24 +26,34 @@ def parse_arguments():
     return args
 
 
+def now():
+    return datetime.datetime.now().strftime('%X').replace(':', '-')
+
+
 def main():
-    print('Starting python within fc')
-
     args = parse_arguments()
-    print(vars(args))
+    s = 'Python command line arguments:\n' + json.dumps(vars(args), indent=2)
+    print_ts(s, flush=True)
 
-    fc = FC(args.fc_data)
-    print('fc-data: {}'.format(args.fc_data))
-    print(fc)
-    tag_data = TagbioData(fc.url, fc.payload)
-    extension = args.output_type
+    # Initialize tag_data
+    tag_data = TagbioData(args.fc_data)
+    tag_data.entity_id = 'patient_id'
 
-    tag_result = TagbioResult(extension=extension, path=args.output_file)
+    print_ts(tag_data.fc_packet, flush=True)
 
+    # Initialize tag_result
+    tag_result = TagbioResult(extension=args.output_type, path=args.output_file)
+
+    # Load user function
     user_function = load_function(args.user_function)
+
+    # Execute user_function
     tag_result = user_function(tag_data, tag_result)
 
+    # Save figure
     tag_result.save()
+
+    print_ts('Done', flush=True)
 
 
 if __name__ == '__main__':
