@@ -1,15 +1,29 @@
 #!/usr/bin/env python
 
 import os
+import logging
 import warnings
-
 import pandas as pd
+
 
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import LeaveOneOut, cross_val_predict
 from sklearn.linear_model import ElasticNetCV
 from sklearn.exceptions import ConvergenceWarning
+
+
+logging.captureWarnings(capture=True)
+
+# Get logger for warnings
+logger = logging.getLogger("py.warnings")
+
+# StreamHandler outputs on sys.stderr by default
+handler = logging.StreamHandler()
+logger.addHandler(handler)
+
+# Set rule to ignore warnings
+logger.addFilter(lambda record: "ConvergenceWarning" not in record.getMessage())
 
 
 def create_pipeline(impute_missing_values=True, **kwargs):
@@ -36,8 +50,8 @@ def elastic_net_cross_validation_params(**kwargs):
     # The regressors X will be normalized before regression by subtracting the mean and dividing by the l2-norm.
     normalize = kwargs.get('normalize', True)
     n_jobs = kwargs.get('n_jobs', multiprocessing.cpu_count())
-    max_iter = kwargs.get('max_iter', 100)
-    tol = kwargs.get('tol', 1e-4)
+    max_iter = kwargs.get('max_iter', 100000)
+    tol = kwargs.get('tol', 1e-6)
     random_state = kwargs.get('random_state', 12345)
     return {
         'l1_ratio': l1_ratio,
