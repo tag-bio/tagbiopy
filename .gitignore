@@ -75,5 +75,3 @@ venv
 # PyCharm
 .idea
 
-# Do not track python notebooks
-ipy/
