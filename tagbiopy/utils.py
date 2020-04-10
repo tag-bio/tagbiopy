@@ -47,8 +47,11 @@ def load_function(filename):
     raise TagbioPyError(message)
 
 
-def now():
-    return datetime.datetime.now().strftime('%F %X')
+def now(sep=None):
+    ret = datetime.datetime.now().strftime('%F %X').replace(':', '-')
+    if isinstance(sep, str):
+        ret = ret.replace(' ', sep)
+    return ret
 
 
 def ts(s):
