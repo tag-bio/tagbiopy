@@ -1,29 +1,11 @@
 #!/usr/bin/env python
 
-import os
-import logging
-import warnings
 import pandas as pd
-
 
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import LeaveOneOut, cross_val_predict
 from sklearn.linear_model import ElasticNetCV
-from sklearn.exceptions import ConvergenceWarning
-
-
-logging.captureWarnings(capture=True)
-
-# Get logger for warnings
-logger = logging.getLogger("py.warnings")
-
-# StreamHandler outputs on sys.stderr by default
-handler = logging.StreamHandler()
-logger.addHandler(handler)
-
-# Set rule to ignore warnings
-logger.addFilter(lambda record: "ConvergenceWarning" not in record.getMessage())
 
 
 def create_pipeline(impute_missing_values=True, **kwargs):
@@ -69,19 +51,12 @@ def elastic_net_cross_validation_worker(outcome, observations, verbose=0, **kwar
 
     gscv = create_pipeline(**params)
 
-    # Desperate attemtp to remove warnings
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            action='ignore',
-            message='Objective did not converge.',
-            lineno=474,
-            category=ConvergenceWarning)
-        _data = cross_val_predict(estimator=gscv,
-                                  X=observations,
-                                  y=outcome,
-                                  cv=LeaveOneOut(),
-                                  n_jobs=params['n_jobs'],
-                                  verbose=verbose)
+    _data = cross_val_predict(estimator=gscv,
+                              X=observations,
+                              y=outcome,
+                              cv=LeaveOneOut(),
+                              n_jobs=params['n_jobs'],
+                              verbose=verbose)
 
     predicted_outcome = pd.Series(data=_data, index=outcome.index, name='Predicted {}'.format(outcome.name))
 
