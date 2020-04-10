@@ -35,7 +35,7 @@ setuptools.setup(
     test_suite='nose.collector',
     tests_require=['nose'],
     scripts=[
-        os.path.join(NAME, 'bin/connect_tagbio')
+        os.path.join(NAME, 'bin/connect_tagbio_py')
     ],
     install_requires=install_requirements(),
     packages=setuptools.find_packages()
