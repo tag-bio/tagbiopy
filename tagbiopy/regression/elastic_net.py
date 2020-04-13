@@ -23,18 +23,20 @@ def create_pipeline(impute_missing_values=True, **kwargs):
 
 
 def elastic_net_cross_validation_params(**kwargs):
+    # li_ratio: https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.ElasticNetCV.html
+    # The regressors X will be normalized before regression by subtracting the
+    # mean and dividing by the l2-norm.
+
     import multiprocessing
 
-    # Prescribed in the documentation
-    # https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.ElasticNetCV.html
     l1_ratio = kwargs.get('l1_ratio', [.1, .5, .7, .9, .95, .99, 1])
     cv = LeaveOneOut()
-    # The regressors X will be normalized before regression by subtracting the mean and dividing by the l2-norm.
     normalize = kwargs.get('normalize', True)
     n_jobs = kwargs.get('n_jobs', multiprocessing.cpu_count())
     max_iter = kwargs.get('max_iter', 1000000)
     tol = kwargs.get('tol', 1e-7)
     random_state = kwargs.get('random_state', 12345)
+
     return {
         'l1_ratio': l1_ratio,
         'cv': cv,
