@@ -12,7 +12,6 @@ def _create_fig_and_ax():
 
 
 def heatmap(df, annotate_values=False, cbar_kw=None, cbarlabel=""):
-
     if cbar_kw is None:
         cbar_kw = {}
 
@@ -24,11 +23,9 @@ def heatmap(df, annotate_values=False, cbar_kw=None, cbarlabel=""):
     ax.set_xticks(np.arange(n_cols))
     ax.set_yticks(np.arange(n_rows))
 
-    ax.set_xticklabels(df.columns)
-    ax.set_yticklabels(df.index)
-
     # Rotate the tick labels and set their alignment.
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    ax.set_xticklabels(df.columns, rotation=45, ha="right", rotation_mode="anchor")
+    ax.set_yticklabels(df.index)
 
     # Create colorbar
     cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw)
@@ -38,11 +35,21 @@ def heatmap(df, annotate_values=False, cbar_kw=None, cbarlabel=""):
     if annotate_values:
         for i in range(n_cols):
             for j in range(n_rows):
-                text = ax.text(j, i, df.iloc[i, j], ha="center", va="center", color="w")
+                _ = ax.text(j, i, df.iloc[i, j], ha="center", va="center", color="w")
 
-    #ax.set_title("Correlation plot", fontsize=24)
+    # ax.set_title("Correlation plot", fontsize=24)
     fig.tight_layout()
 
+    return fig
+
+
+def heatmap_plotly(df):
+    fig = go.Figure(data=go.Heatmap(
+        z=df,
+        x=df.columns,
+        y=df.index,
+        hoverongaps=False)
+    )
     return fig
 
 
@@ -71,11 +78,60 @@ def r2_plot(y, y_hat, title=None):
     return fig
 
 
-def heatmap_plotly(df):
-    fig = go.Figure(data=go.Heatmap(
-        z=df,
-        x=df.columns,
-        y=df.index,
-        hoverongaps=False)
+def r2_plotly(x, y, title=None):
+    from sklearn.metrics import r2_score
+    r2 = r2_score(x, y)
+
+    fig = go.Figure()
+    # Line
+    fig.add_trace(
+        go.Scatter(
+            x=[y.min(), y.max()],
+            y=[y.min(), y.max()],
+            showlegend=False,
+            mode='lines',
+            line=dict(color='red')
+        )
     )
+    # Data
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=y,
+            showlegend=False,
+            mode='markers',
+            marker=dict(
+                color='blue'
+            )
+        )
+    )
+
+    fig.update_layout(
+        width=500,
+        height=450,
+        xaxis=dict(
+            title_text=x.name,
+            title_font={'size': 18}
+        ),
+        yaxis=dict(
+            title_text=y.name,
+            title_font={'size': 18},
+            scaleanchor="x",
+            scaleratio=1,
+        )
+    )
+
+    fig.update_layout(
+        showlegend=False,
+        annotations=[
+            dict(
+                x=0.5,
+                y=2.8,
+                text='Variance explained: {:.2f}%'.format(r2 * 100),
+                font=dict(family='Arial, bold', size=25),
+                showarrow=False
+            )
+        ]
+    )
+
     return fig
