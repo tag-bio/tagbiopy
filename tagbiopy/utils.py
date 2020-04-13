@@ -1,25 +1,32 @@
 import datetime
 import json
+import logging
 import os
-
-from collections import namedtuple
 
 import requests
 
+from tagbiopy.logging import LOGGER_NAME
 from tagbiopy.exceptions import TagbioPyError
 
-
-def fc_decoder(name, packet):
-    if isinstance(packet, str):
-        packet = json.dumps(packet)
-
-    return namedtuple(name, packet.keys())(*packet.values())
+logger = logging.getLogger(LOGGER_NAME)
 
 
-def json_to_object(packet):
-    import types
+def create_temp_file(prefix=None, suffix='.log', fh=False):
+    """
+    Creates a temporary file
+    :param prefix: str
+    :param suffix: str
+    :param fh: bool, default False. By default, return the filename, otherwise filehandle
+    :return: filehandle or filename to a temp file
+    """
+    import tempfile
 
-    return json.loads(packet, object_hook=lambda d: types.SimpleNamespace(**d))
+    fd, log_file = tempfile.mkstemp(prefix=prefix, suffix=suffix)
+
+    if fh:
+        return os.fdopen(fd)
+    else:
+        return log_file
 
 
 def load_json(filename):
@@ -60,16 +67,6 @@ def ts(s):
 
 def print_ts(s, **kwargs):
     print(ts(s), **kwargs)
-
-
-def serialize(packet):
-    if isinstance(packet, str):
-        packet = json.loads(packet)
-
-    if isinstance(packet, dict):
-        return packet
-
-    raise TagbioPyError('packet type: {}'.format(type(packet)))
 
 
 def set_payload(target='protocol_instance', api_key=None, **kwargs):
@@ -196,10 +193,9 @@ class TagbioData:
 
 
 class TagbioResult:
-
     _extensions = ('html', 'jpeg', 'pdf', 'png', 'svg', 'csv')
 
-    def __init__(self, extension='pdf', path=None, path_mutable=True):
+    def __init__(self, extension='html', path=None, path_mutable=True):
         """
         :param extension: str, type of output where the df is going to go
         :param path: path, private, where the df will be stored
@@ -270,24 +266,29 @@ class TagbioResult:
         if self._path_mutable:
             self.__path = value
 
-    def save(self):
+    def save(self, what='fig'):
         import matplotlib.figure
         import plotly.graph_objects
 
-        if self.extension == 'csv':
-            float_format = '%.4f'
-            self.df.to_csv(self.path, float_format=float_format)
-        elif self.extension == 'html':
-            if isinstance(self.fig, plotly.graph_objs.Figure):
-                self.fig.write_html(self.path)
-            else:
-                message = 'Please create a plotly figure and save it as html'
-                raise TagbioPyError(message)
-        else:
-            if isinstance(self.fig, matplotlib.figure.Figure):
+        if what == 'fig':
+            if isinstance(self.fig, plotly.graph_objects.Figure):
+                if self.extension == 'html':
+                    self.fig.write_html(self.path)
+                else:
+                    self.fig.write_image(self.path, format=self.extension)
+            elif isinstance(self.fig, matplotlib.figure.Figure):
                 self.fig.savefig(self.path, format=self.extension)
-            elif isinstance(self.fig, plotly.graph_objs.Figure):
-                self.fig.write_image(self.path, format=self.extension)
             else:
                 message = 'Please create either a matplotlib or plotly figure'
                 raise TagbioPyError(message)
+
+        elif what == 'data':
+            path = self.path
+            if self.extension != 'csv':
+                message = 'Your output extension is {}. Setting to "csv"'.format(self.extension)
+                logger.warning(message)
+                path = self.path + '.csv'
+            logger.info('Storing TagbioResult data to {}'.format(path))
+            float_format = '%.4f'
+            self.df.to_csv(path, float_format=float_format)
+            logger.info('Stored')
