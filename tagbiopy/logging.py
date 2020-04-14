@@ -1,16 +1,11 @@
-
 import logging
-import multiprocessing
-import threading
-import warnings
-import joblib
 
 
-import tagbiopy.utils
+from .utils import now, create_temp_file
 
 
 LOG_FORMAT = '{asctime} {name} {levelname} {module}.{funcName} {threadName}[{thread}] line {lineno}: {message}'
-LOGGER_NAME = 'connect_tagbio_py'
+LOGGER_NAME = __package__
 
 
 def fix_py_warnings(ts):
@@ -18,10 +13,10 @@ def fix_py_warnings(ts):
     logger = logging.getLogger('py.warnings')
 
     prefix = f"py.warnings_{ts}_"
-    log_file = tagbiopy.utils.create_temp_file(prefix=prefix)
+    log_file = create_temp_file(prefix=prefix)
 
     file_handler = logging.FileHandler(log_file)
-
+    logger.addHandler(file_handler)
 
 
 class MultiprocessHandler(logging.Handler):
@@ -34,6 +29,9 @@ class MultiprocessHandler(logging.Handler):
     """
 
     def __init__(self, log_file):
+        import multiprocessing
+        import threading
+
         super(MultiprocessHandler, self).__init__()
 
         self._handler = logging.FileHandler(log_file)
@@ -68,8 +66,6 @@ class MultiprocessHandler(logging.Handler):
             self.send(s)
         except (KeyboardInterrupt, SystemExit):
             raise
-        except Exception:
-            self.handleError(record)
 
     def setFormatter(self, fmt):
         logging.Handler.setFormatter(self, fmt)
@@ -89,20 +85,21 @@ class MultiprocessHandler(logging.Handler):
         self.queue.put_nowait(s)
 
 
-def initialize_logger(name=LOGGER_NAME, level=logging.DEBUG):
+def initialize_logger(logger_name=LOGGER_NAME, level=logging.DEBUG):
     # We send all logs to a log file
-    now_ts = tagbiopy.utils.now('_')
+    now_ts = now('_')
     prefix = f"tagbio_py_{now_ts}_"
-    log_file = tagbiopy.utils.create_temp_file(prefix=prefix)
+    log_file = create_temp_file(prefix=prefix)
     print('Python log file: {}'.format(log_file), flush=True)
 
-    logger = logging.getLogger(name)
+    logger = logging.getLogger(logger_name)
+
     logger.setLevel(level)
 
     formatter = logging.Formatter(fmt=LOG_FORMAT, style='{')
 
     # All logging goes to a temp file
-    #file_handler = logging.FileHandler(log_file)
+    # file_handler = logging.FileHandler(log_file)
     file_handler = MultiprocessHandler(log_file)
     file_handler.setLevel(level)
     file_handler.setFormatter(formatter)
@@ -116,5 +113,6 @@ def initialize_logger(name=LOGGER_NAME, level=logging.DEBUG):
 
     # Send warnings to the logger, as well
     logging.captureWarnings(True)
+    fix_py_warnings(now_ts)
 
     return logger
