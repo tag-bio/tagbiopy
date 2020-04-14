@@ -21,12 +21,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('-d', '--fc_data', required=True, help=usage['fc_data'])
     parser.add_argument('-f', '--user_function', required=True, help=usage['user_function'])
     parser.add_argument('-t', '--output_type', required=False, help=usage['output_type'])
-    parser.add_argument('-o', '--output_file',
-                        required=False,
-                        help=usage['output_file'],
-                        default=create_temp_file(prefix='py_{}'.format(now('_')),
-                                                 suffix='.temp')
-                        )
+    parser.add_argument('-o', '--output_file', required=False, help=usage['output_file'])
 
     args = parser.parse_args()
 
@@ -36,6 +31,10 @@ def parse_arguments() -> argparse.Namespace:
 def set_extension_and_path(args: argparse.Namespace) -> (str, str):
     extension = args.output_type
     path = args.output_file
+
+    if path is None:
+        path = create_temp_file(prefix='py_{}_'.format(now('_')), suffix='.temp')
+
     if extension is not None:
         if path.endswith('.temp'):
             path = path.replace('.temp', extension)

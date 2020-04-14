@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# The following works only if you used pyenv to create a virtualenv called "fc"
+# and in it installed this package.
+
 export PYENV_VERSION=fc
 
 fc_packet=$1
