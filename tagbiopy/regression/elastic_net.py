@@ -17,9 +17,8 @@ def create_pipeline(impute_missing_values=True, **kwargs) -> Pipeline:
     :param kwargs: dict, if non-default elastic net cross validation parameters are desired
     :return: Pipeline
     """
-    params = elastic_net_cross_validation_params(**kwargs)
 
-    estimator = ElasticNetCV(**params)
+    estimator = ElasticNetCV(**kwargs)
 
     if impute_missing_values:
         imputer = SimpleImputer(strategy='median')
@@ -38,7 +37,7 @@ def elastic_net_cross_validation_params(**kwargs) -> dict:
     import multiprocessing
 
     l1_ratio = kwargs.get('l1_ratio', [.1, .5, .7, .9, .95, .99, 1])
-    cv = LeaveOneOut()
+    cv = kwargs.get('cv', LeaveOneOut())
     normalize = kwargs.get('normalize', True)
     n_jobs = kwargs.get('n_jobs', multiprocessing.cpu_count())
     max_iter = kwargs.get('max_iter', 1000000)
@@ -67,8 +66,8 @@ def elastic_net_cross_validation(outcome, observations, **kwargs) -> (pd.Series,
         predicted_outcome: pd.Series, predicted values
         params: dict, what was used by elastic net cross validation
     """
-    params = elastic_net_cross_validation_params(**kwargs)
 
+    params = elastic_net_cross_validation_params(**kwargs)
     gscv = create_pipeline(**params)
     logger.debug('gscv: {}'.format(str(gscv)))
 
