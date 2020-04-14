@@ -80,7 +80,7 @@ def r2_plot(y, y_hat, title=None):
 
 def r2_plotly(x, y, title=None):
     from sklearn.metrics import r2_score
-    r2 = r2_score(x, y)
+    r2 = r2_score(y, x)
 
     fig = go.Figure()
     # Line
@@ -102,9 +102,11 @@ def r2_plotly(x, y, title=None):
             y=y,
             showlegend=False,
             mode='markers',
-            marker=dict(
-                color='blue'
-            )
+            marker={'color': 'blue'},
+            hovertemplate='Patient ID: %{text}' +
+                          '<br>Predicted: %{x:.2f}<br>' +
+                          'Measured: %{y:.2f}',
+            text=x.index
         )
     )
 
@@ -121,7 +123,8 @@ def r2_plotly(x, y, title=None):
             tickfont={'size': 15},
             scaleanchor="x",
             scaleratio=1
-        )
+        ),
+        hoverlabel_align='right'
     )
 
     fig.update_layout(
@@ -136,5 +139,8 @@ def r2_plotly(x, y, title=None):
             )
         ]
     )
+
+    if title is not None:
+        fig.update_layout(title_text=title)
 
     return fig
