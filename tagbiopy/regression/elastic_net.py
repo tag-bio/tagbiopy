@@ -56,23 +56,6 @@ def elastic_net_cross_validation_params(**kwargs) -> dict:
     }
 
 
-def elastic_net_cross_validation_worker(outcome, observations, verbose=0, **kwargs) -> (pd.Series, dict):
-    params = elastic_net_cross_validation_params(**kwargs)
-
-    gscv = create_pipeline(**params)
-
-    _data = cross_val_predict(estimator=gscv,
-                              X=observations,
-                              y=outcome,
-                              cv=LeaveOneOut(),
-                              n_jobs=params['n_jobs'],
-                              verbose=verbose)
-
-    predicted_outcome = pd.Series(data=_data, index=outcome.index, name='Predicted {}'.format(outcome.name))
-
-    return predicted_outcome, params
-
-
 def elastic_net_cross_validation(outcome, observations, **kwargs) -> (pd.Series, dict):
     """
 
