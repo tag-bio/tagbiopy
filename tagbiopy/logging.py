@@ -1,56 +1,97 @@
-
-
 import logging
 
 
-from tagbiopy.utils import now
+from .utils import now, create_temp_file
 
 
-LOG_FORMAT = '{asctime} {name} {levelname} {module}.{funcName} line {lineno}: {message}'
+LOG_FORMAT = '{asctime} {name} {levelname} {module}.{funcName} {threadName}[{thread}] line {lineno}: {message}'
+LOGGER_NAME = __package__
 
 
-def create_log_file(prefix, suffix='.log'):
-    import tempfile
+class MultiprocessHandler(logging.Handler):
+    """multiprocessing log handler
 
-    fd, log_file = tempfile.mkstemp(prefix=prefix, suffix=suffix)
-    return fd, log_file
+    This handler makes it possible for several processes to log to the same
+    file by using a queue.
+
+    Shamelessly stolen from https://mattgathu.github.io/multiprocessing-logging-in-python/
+    """
+
+    def __init__(self, log_file):
+        import multiprocessing
+        import threading
+
+        super(MultiprocessHandler, self).__init__()
+
+        self._handler = logging.FileHandler(log_file)
+        self.queue = multiprocessing.Queue(-1)
+
+        self._is_closed = False
+        self._t = threading.Thread(target=self.receive)
+        self._t.daemon = True
+        self._t.start()
+
+    def _format_record(self, record: logging.LogRecord):
+        if record.args:
+            record.msg = record.msg % record.args
+            record.args = None
+        if record.exc_info:
+            _ = self.format(record)
+            record.exc_info = None
+
+        return record
+
+    def close(self):
+        if not self._is_closed:
+            self._t.join(timeout=5.0)
+            self._is_closed = True
+
+            self._handler.close()
+            super(MultiprocessHandler, self).close()
+
+    def emit(self, record):
+        try:
+            s = self._format_record(record)
+            self.send(s)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+
+    def setFormatter(self, fmt):
+        logging.Handler.setFormatter(self, fmt)
+        self._handler.setFormatter(fmt)
+
+    def receive(self):
+        while True:
+            try:
+                record = self.queue.get()
+                self._handler.emit(record)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except EOFError:
+                break
+
+    def send(self, s):
+        self.queue.put_nowait(s)
 
 
-def fix_py_warnings_logger(level=logging.DEBUG):
-    # Check https://docs.python.org/3.8/library/logging.html#logging.captureWarnings
-
-    logging.captureWarnings(True)
-
-    _, log_file = create_log_file(prefix='py_warnings_{}_'.format(now('_')))
-
-    formatter = logging.Formatter(fmt=LOG_FORMAT, style='{')
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(level)
-    file_handler.setFormatter(formatter)
-
-    # Add filehandle to python warning logger
-    py_warn_logger = logging.Logger('py.warnings')
-    py_warn_logger.addHandler(file_handler)
-
-    # Also set py.warnings to the same file
-    return log_file
-
-
-def initialize_logger(name='connect_tagbio', level=logging.DEBUG):
-
+def initialize_logger(logger_name=LOGGER_NAME, level=logging.DEBUG):
     # We send all logs to a log file
-    _, log_file = create_log_file(prefix='tb_{}_'.format(now('_')))
+    now_ts = now('_')
+    prefix = f"tagbio_py_{now_ts}_"
+    log_file = create_temp_file(prefix=prefix)
     print('Python log file: {}'.format(log_file), flush=True)
 
-    logger = logging.getLogger(name)
+    logger = logging.getLogger(logger_name)
+
     logger.setLevel(level)
 
     formatter = logging.Formatter(fmt=LOG_FORMAT, style='{')
 
-    file_handler = logging.FileHandler(log_file)
+    # All logging goes to a temp file
+    # file_handler = logging.FileHandler(log_file)
+    file_handler = MultiprocessHandler(log_file)
     file_handler.setLevel(level)
     file_handler.setFormatter(formatter)
-
     logger.addHandler(file_handler)
 
     # We send all errors to the console
@@ -59,8 +100,7 @@ def initialize_logger(name='connect_tagbio', level=logging.DEBUG):
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # Fix py.warnings logger - set its handler to a file
-    py_warnings_log_file = fix_py_warnings_logger(level)
-    logger.info('Python warnings log file: {}'.format(py_warnings_log_file))
+    # Send warnings to the logger, as well
+    logging.captureWarnings(True)
 
     return logger
