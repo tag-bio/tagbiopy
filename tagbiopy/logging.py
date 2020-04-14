@@ -8,17 +8,6 @@ LOG_FORMAT = '{asctime} {name} {levelname} {module}.{funcName} {threadName}[{thr
 LOGGER_NAME = __package__
 
 
-def fix_py_warnings(ts):
-    logging.captureWarnings(True)
-    logger = logging.getLogger('py.warnings')
-
-    prefix = f"py.warnings_{ts}_"
-    log_file = create_temp_file(prefix=prefix)
-
-    file_handler = logging.FileHandler(log_file)
-    logger.addHandler(file_handler)
-
-
 class MultiprocessHandler(logging.Handler):
     """multiprocessing log handler
 
@@ -113,6 +102,5 @@ def initialize_logger(logger_name=LOGGER_NAME, level=logging.DEBUG):
 
     # Send warnings to the logger, as well
     logging.captureWarnings(True)
-    fix_py_warnings(now_ts)
 
     return logger
