@@ -33,7 +33,7 @@ def parse_arguments() -> argparse.Namespace:
     return args
 
 
-def set_extension_and_path(args: argparse.Namespace):
+def set_extension_and_path(args: argparse.Namespace) -> (str, str):
     extension = args.output_type
     path = args.output_file
     if extension is not None:
