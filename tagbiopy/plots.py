@@ -82,6 +82,20 @@ def r2_plotly(x, y, title=None):
     from sklearn.metrics import r2_score
     r2 = r2_score(y, x)
 
+    data_min = min(x)
+    if min(y) < data_min:
+        data_min = min(y)
+
+    data_max = max(x)
+    if max(y) > data_max:
+        data_max = max(y)
+
+    data_range = data_max - data_min
+    plot_min = data_min - data_range/19
+    plot_max = data_max + data_range/19
+
+    print(data_range, data_min, data_max, plot_min, plot_max)
+
     fig = go.Figure()
     # Line
     fig.add_trace(
@@ -90,7 +104,7 @@ def r2_plotly(x, y, title=None):
             y=[y.min(), y.max()],
             showlegend=False,
             mode='lines',
-            line=dict(color='red')
+            line={'color': '#FF8E26', 'width': 3}
         )
 
     )
@@ -102,7 +116,7 @@ def r2_plotly(x, y, title=None):
             y=y,
             showlegend=False,
             mode='markers',
-            marker={'color': 'blue'},
+            marker={'color': '#1969B7', 'size': 10},
             hovertemplate='Patient ID: %{text}' +
                           '<br>Predicted: %{x:.2f}<br>' +
                           'Measured: %{y:.2f}',
@@ -112,15 +126,20 @@ def r2_plotly(x, y, title=None):
 
     fig.update_layout(
         width=800,
-        height=720,
+        height=800,
         xaxis=dict(
             title_text=x.name.replace('->', '\u2192'),
-            title_font={'size': 18}
+            title_font=dict(size=18, color='#222222'),
+            tickfont=dict(size=15, color='#222222'),
+            zerolinecolor='#222222',
+            gridcolor='#3B97D3'
         ),
         yaxis=dict(
             title_text=y.name.replace('->', '\u2192'),
-            title_font={'size': 18},
-            tickfont={'size': 15},
+            title_font=dict(size=18, color='#222222'),
+            tickfont=dict(size=15, color='#222222'),
+            zerolinecolor='#222222',
+            gridcolor='#3B97D3',
             scaleanchor="x",
             scaleratio=1
         ),
@@ -131,13 +150,21 @@ def r2_plotly(x, y, title=None):
         showlegend=False,
         annotations=[
             dict(
-                x=0.5,
-                y=2.8,
+                x=min(y) + data_range/3,
+                y=max(y) - data_range/12,
                 text='Variance explained: {:.2f}%'.format(r2 * 100),
-                font=dict(family='Arial, bold', size=25),
+                font=dict(family='Arial', size=25, color='#DB307D'),
                 showarrow=False
             )
         ]
+    )
+
+    fig.update_xaxes(range=[plot_min, plot_max])
+    fig.update_yaxes(range=[plot_min, plot_max])
+
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)'
     )
 
     if title is not None:
