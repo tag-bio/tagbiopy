@@ -9,7 +9,7 @@ import joblib
 import tagbiopy.utils
 
 
-LOG_FORMAT = '{asctime} {name} {levelname} {module}.{funcName} Thread {threadName}[{thread}] line {lineno}: {message}'
+LOG_FORMAT = '{asctime} {name} {levelname} {module}.{funcName} {threadName}[{thread}] line {lineno}: {message}'
 LOGGER_NAME = 'connect_tagbio_py'
 
 
