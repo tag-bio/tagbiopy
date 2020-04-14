@@ -8,3 +8,5 @@ plotly
 nbformat
 # Need orca from https://github.com/plotly/orca and then
 psutil
+numpy
+scikit-learn
