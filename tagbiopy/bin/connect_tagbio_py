@@ -66,7 +66,6 @@ def main():
     user_function(tag_data, tag_result)
 
     logger.info('Done')
-
     print_ts('Done', flush=True)
 
 
