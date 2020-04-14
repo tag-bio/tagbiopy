@@ -5,10 +5,9 @@ import os
 
 import requests
 
-from tagbiopy.logging import LOGGER_NAME
-from tagbiopy.exceptions import TagbioPyError
+from .exceptions import TagbioPyError
 
-logger = logging.getLogger(LOGGER_NAME)
+logger = logging.getLogger(__name__)
 
 
 def create_temp_file(prefix=None, suffix='.log', fh=False):
