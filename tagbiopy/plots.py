@@ -92,7 +92,9 @@ def r2_plotly(x, y, title=None):
             mode='lines',
             line=dict(color='red')
         )
+
     )
+
     # Data
     fig.add_trace(
         go.Scatter(
@@ -107,17 +109,18 @@ def r2_plotly(x, y, title=None):
     )
 
     fig.update_layout(
-        width=500,
-        height=450,
+        width=800,
+        height=720,
         xaxis=dict(
-            title_text=x.name,
+            title_text=x.name.replace('->', '\u2192'),
             title_font={'size': 18}
         ),
         yaxis=dict(
-            title_text=y.name,
+            title_text=y.name.replace('->', '\u2192'),
             title_font={'size': 18},
+            tickfont={'size': 15},
             scaleanchor="x",
-            scaleratio=1,
+            scaleratio=1
         )
     )
 
