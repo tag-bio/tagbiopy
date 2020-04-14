@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 import matplotlib.figure
 import plotly.graph_objects as go
@@ -9,6 +10,22 @@ def _create_fig_and_ax():
     fig.set_size_inches(18.5, 10.5)
     ax = fig.subplots()
     return fig, ax
+
+
+def _get_data_extrema(x: pd.Series, y: pd.Series, overflow=19) -> (float, float):
+    data_min = min(x)
+    if min(y) < data_min:
+        data_min = min(y)
+
+    data_max = max(x)
+    if max(y) > data_max:
+        data_max = max(y)
+
+    data_range = data_max - data_min
+    plot_min = data_min - data_range / overflow
+    plot_max = data_max + data_range / overflow
+
+    return plot_min, plot_max
 
 
 def heatmap(df, annotate_values=False, cbar_kw=None, cbarlabel=""):
@@ -82,19 +99,8 @@ def r2_plotly(x, y, title=None):
     from sklearn.metrics import r2_score
     r2 = r2_score(y, x)
 
-    data_min = min(x)
-    if min(y) < data_min:
-        data_min = min(y)
-
-    data_max = max(x)
-    if max(y) > data_max:
-        data_max = max(y)
-
-    data_range = data_max - data_min
-    plot_min = data_min - data_range/19
-    plot_max = data_max + data_range/19
-
-    print(data_range, data_min, data_max, plot_min, plot_max)
+    plot_min, plot_max = _get_data_extrema(x, y)
+    data_range = plot_max - plot_min
 
     fig = go.Figure()
     # Line
@@ -106,7 +112,6 @@ def r2_plotly(x, y, title=None):
             mode='lines',
             line={'color': '#FF8E26', 'width': 3}
         )
-
     )
 
     # Data
@@ -150,8 +155,8 @@ def r2_plotly(x, y, title=None):
         showlegend=False,
         annotations=[
             dict(
-                x=min(y) + data_range/3,
-                y=max(y) - data_range/12,
+                x=min(y) + data_range / 3,
+                y=max(y) - data_range / 12,
                 text='Variance explained: {:.2f}%'.format(r2 * 100),
                 font=dict(family='Arial', size=25, color='#DB307D'),
                 showarrow=False
@@ -163,8 +168,8 @@ def r2_plotly(x, y, title=None):
     fig.update_yaxes(range=[plot_min, plot_max])
 
     fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)'
+        paper_bgcolor='#FFFFFF',
+        plot_bgcolor='#FFFFFF'
     )
 
     if title is not None:
