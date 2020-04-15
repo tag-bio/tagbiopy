@@ -110,7 +110,8 @@ def r2_plotly(x, y, title=None):
             y=[y.min(), y.max()],
             showlegend=False,
             mode='lines',
-            line={'color': '#FF8E26', 'width': 3}
+            line={'color': '#FF8E26', 'width': 3},
+            hoverinfo='skip'
         )
     )
 
@@ -123,9 +124,11 @@ def r2_plotly(x, y, title=None):
             mode='markers',
             marker={'color': '#3B97D3', 'size': 10},
             hoverlabel={'bordercolor': '#FFF', 'font_size': 16},
-            hovertemplate='Patient ID: %{text}' +
-                          '<br>Predicted: %{x:.2f}<br>' +
-                          'Measured: %{y:.2f}',
+            hovertemplate=' <b>Patient ID: %{text}</b> ' +
+                          '<br><br>' +
+                          ' Predicted: %{x:.2f} <br>' +
+                          ' Measured: %{y:.2f} ' +
+                          '<extra></extra>',
             text=x.index
         )
     )
