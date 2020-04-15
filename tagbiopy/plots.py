@@ -110,7 +110,8 @@ def r2_plotly(x, y, title=None):
             y=[y.min(), y.max()],
             showlegend=False,
             mode='lines',
-            line={'color': '#FF8E26', 'width': 3}
+            line={'color': '#FF8E26', 'width': 3},
+            hoverinfo='skip'
         )
     )
 
@@ -121,10 +122,13 @@ def r2_plotly(x, y, title=None):
             y=y,
             showlegend=False,
             mode='markers',
-            marker={'color': '#1969B7', 'size': 10},
-            hovertemplate='Patient ID: %{text}' +
-                          '<br>Predicted: %{x:.2f}<br>' +
-                          'Measured: %{y:.2f}',
+            marker={'color': '#3B97D3', 'size': 10},
+            hoverlabel={'bordercolor': '#FFF', 'font_size': 16},
+            hovertemplate=' <b>Patient ID: %{text}</b> ' +
+                          '<br><br>' +
+                          ' Predicted: %{x:.2f} <br>' +
+                          ' Measured: %{y:.2f} ' +
+                          '<extra></extra>',
             text=x.index
         )
     )
@@ -137,18 +141,19 @@ def r2_plotly(x, y, title=None):
             title_font=dict(size=18, color='#222222'),
             tickfont=dict(size=15, color='#222222'),
             zerolinecolor='#222222',
-            gridcolor='#3B97D3'
+            gridcolor='#ccc'
         ),
         yaxis=dict(
             title_text=y.name.replace('->', '\u2192'),
             title_font=dict(size=18, color='#222222'),
             tickfont=dict(size=15, color='#222222'),
             zerolinecolor='#222222',
-            gridcolor='#3B97D3',
+            gridcolor='#ccc',
             scaleanchor="x",
             scaleratio=1
         ),
         hoverlabel_align='right'
+
     )
 
     fig.update_layout(

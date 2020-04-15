@@ -4,7 +4,7 @@ import os
 import setuptools
 
 
-BASE_URL = 'https://bitbucket.org/protocolbuilders'
+BASE_URL = 'https://bitbucket.org/cloudfolks'
 NAME = 'tagbiopy'
 
 
@@ -18,7 +18,7 @@ def install_requirements():
 
 setuptools.setup(
     name=NAME,
-    version='0.0.6',
+    version='0.0.7',
     description='Provides tag.bio python SDK.',
     url=os.path.join(BASE_URL, NAME),
     author='D',
