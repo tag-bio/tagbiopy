@@ -110,7 +110,7 @@ def r2_plotly(x, y, title=None):
             y=[y.min(), y.max()],
             showlegend=False,
             mode='lines',
-            line={'color': '#FF8E26', 'width': 3},
+            line_color='#FF8E26', line_width=3,
             hoverinfo='skip'
         )
     )
@@ -122,7 +122,7 @@ def r2_plotly(x, y, title=None):
             y=y,
             showlegend=False,
             mode='markers',
-            marker={'color': '#3B97D3', 'size': 10},
+            marker_color='#3B97D3', marker_size=10,
             hoverlabel={'bordercolor': '#FFF', 'font_size': 16},
             hovertemplate=' <b>Patient ID: %{text}</b> ' +
                           '<br><br>' +
@@ -134,26 +134,26 @@ def r2_plotly(x, y, title=None):
     )
 
     fig.update_layout(
-        width=800,
-        height=800,
+        autosize=True,
+        #width=800,
+        #height=800,
         xaxis=dict(
             title_text=x.name.replace('->', '\u2192'),
-            title_font=dict(size=18, color='#222222'),
-            tickfont=dict(size=15, color='#222222'),
+            title_font_size=18, title_font_color='#222222',
+            tickfont_size=15, tickfont_color='#222222',
             zerolinecolor='#222222',
             gridcolor='#ccc'
         ),
         yaxis=dict(
             title_text=y.name.replace('->', '\u2192'),
-            title_font=dict(size=18, color='#222222'),
-            tickfont=dict(size=15, color='#222222'),
+            title_font_size=18, title_font_color='#222222',
+            tickfont_size=15, tickfont_color='#222222',
             zerolinecolor='#222222',
             gridcolor='#ccc',
             scaleanchor="x",
             scaleratio=1
         ),
         hoverlabel_align='right'
-
     )
 
     fig.update_layout(
@@ -173,8 +173,8 @@ def r2_plotly(x, y, title=None):
     fig.update_yaxes(range=[plot_min, plot_max])
 
     fig.update_layout(
-        paper_bgcolor='#FFFFFF',
-        plot_bgcolor='#FFFFFF'
+        paper_bgcolor='#fff',
+        plot_bgcolor='#fff'
     )
 
     if title is not None:
