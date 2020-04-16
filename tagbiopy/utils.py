@@ -3,6 +3,7 @@ import json
 import logging
 import os
 
+import pandas as pd
 import requests
 
 from .exceptions import TagbioPyError
@@ -26,6 +27,17 @@ def create_temp_file(prefix=None, suffix='.log', fh=False):
         return os.fdopen(fd)
     else:
         return log_file
+
+
+def flatten_single_element_list(_dict):
+    ret = {}
+    for k, v in _dict.items():
+        if isinstance(v, list):
+            if len(v) == 1:
+                ret[k] = v[0]
+            else:
+                ret[k] = [w for w in v]
+    return ret
 
 
 def load_json(filename):
@@ -87,7 +99,6 @@ def set_payload(target='protocol_instance', api_key=None, **kwargs):
 
 
 def turn_to_df(content, entity_id=None):
-    import pandas as pd
     import io
 
     encoded_content = str(content, 'utf-8')
@@ -104,9 +115,9 @@ def turn_to_df(content, entity_id=None):
 class FCPacket:
 
     def __init__(self, filename):
-
+        self.__filename = filename
         # Serialize the entire packet received from the FC
-        self._packet = load_json(filename)
+        self._packet = load_json(self.__filename)
 
         # Get the 'fc' part
         self._fc = self._packet.get('fc')
@@ -121,7 +132,7 @@ class FCPacket:
         self.test_passed_protocol()
 
         # Take care of passthrough arguments
-        self.passthrough_arguments = self._packet.get('passthrough_arguments')
+        self.passthrough_arguments = PassThroughArguments(self._packet.get('passthrough_arguments'))
 
         # Payload
         self._payload = None
@@ -130,6 +141,11 @@ class FCPacket:
         self._r = None
 
     def __repr__(self):
+        ret = self.__class__.__name__
+        ret += f'(filename={self.__filename})'
+        return ret
+
+    def __str__(self):
         ret = 'class {}: name: {}, url: {}'.format(self.__class__.__name__, self.name, self.url)
         ret += ', packet: \n'
         ret += json.dumps(self._packet, indent=2)
@@ -147,7 +163,7 @@ class FCPacket:
                 self._payload = set_payload(target='protocol_instance', **_protocol_instance)
             elif self.script:
                 _script = self.script
-                _script.update({'passthrough_arguments': self.passthrough_arguments})
+                _script.update({'passthrough_arguments': self._packet.get('passthrough_arguments')})
                 self._payload = set_payload(target='script', **_script)
         return self._payload
 
@@ -166,17 +182,71 @@ class FCPacket:
         return self._r
 
 
+class PassThroughArguments:
+
+    def __init__(self, passthrough_dict):
+        """
+        :type passthrough_dict: dict
+        """
+        self._dict = {}
+        if isinstance(passthrough_dict, dict):
+            self._dict = flatten_single_element_list(passthrough_dict)
+            self.__dict__.update(self._dict)
+        self._attributes = None
+
+    def __repr__(self):
+        ret = self.__class__.__name__
+        ret += f'(passthrough_dict={self._dict})'
+
+        return ret
+
+    def __str__(self):
+        ret = '<class {}:'.format(self.__class__.__name__)
+        ret += ', attributes: '
+        ret += ', '.join(['{} ({})'.format(k, str(type(getattr(self, k)))) for k in self.attributes])
+        ret += '>'
+        return ret
+
+    @property
+    def attributes(self):
+        if self._attributes is None:
+            self._attributes = sorted([k for k in self.__dict__.keys() if not k.startswith('_')])
+        return self._attributes
+
+    def get(self, name):
+        if name not in self.attributes:
+            message = f'{name}: Invalid attribute name.'
+            message += f' Please choose from: {self.attributes}'
+            raise TagbioPyError(message)
+        return getattr(self, name)
+
+
 class TagbioData:
 
     def __init__(self, fc_packet, entity_id=None, clean_up_collections=True):
-        self.fc_packet = FCPacket(fc_packet)
+        self.__fc_packet = fc_packet
+        self.fc_packet = FCPacket(self.__fc_packet)
+        self.passthrough_arguments = self.fc_packet.passthrough_arguments
         self.entity_id = entity_id
         self.clean_up_collections = clean_up_collections
 
         self._df = None
 
+    def __repr__(self):
+        ret = self.__class__.__name__
+        ret += f'(fc_packet={self.__fc_packet}, '
+        ret += f'entity_id={self.entity_id}, '
+        ret += f'clean_up_collections={self.clean_up_collections})'
+        return ret
+
+    def __str__(self):
+        ret = '<class {}:'.format(self.__class__.__name__)
+        ret += ' df: {}'.format(str(self.df.shape))
+        ret += '>'
+        return ret
+
     @property
-    def df(self):
+    def df(self) -> pd.DataFrame:
         if self._df is None:
             self._df = turn_to_df(self.fc_packet.r.content, self.entity_id)
             if self.clean_up_collections:
@@ -216,6 +286,13 @@ class TagbioResult:
         self._fig = None
 
     def __repr__(self):
+        ret = self.__class__.__name__
+        ret += f'(extension={self.extension}, '
+        ret += f'path={self.path}, '
+        ret += f'path_mutable={self._path_mutable})'
+        return ret
+
+    def __str__(self):
         ret = '<class {}:'.format(self.__class__.__name__)
         ret += f' extension: {self.extension}'
         if self.fig is not None:
