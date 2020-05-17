@@ -18,7 +18,7 @@ def install_requirements():
 
 setuptools.setup(
     name=NAME,
-    version='0.0.8',
+    version='0.0.9',
     description='Provides tag.bio python SDK.',
     url=os.path.join(BASE_URL, NAME),
     author='D',
