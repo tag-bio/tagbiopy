@@ -2,10 +2,12 @@
 
 import argparse
 import json
+import logging
+
 from typing import Dict
 
+from tagbiopy.logging import LOGGER_NAME
 from tagbiopy.utils import load_function, create_temp_file, TagbioData, TagbioResult, now, print_ts
-from tagbiopy.logging import initialize_logger
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -44,7 +46,7 @@ def set_extension_and_path(args: argparse.Namespace) -> (str, str):
 def main():
     args = parse_arguments()
 
-    logger = initialize_logger()
+    logger = logging.getLogger(LOGGER_NAME)
 
     s = 'Python command line arguments:\n' + json.dumps(vars(args), indent=2)
     logger.info(s)

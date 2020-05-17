@@ -79,7 +79,7 @@ def initialize_logger(logger_name=LOGGER_NAME, level=logging.DEBUG):
     now_ts = now('_')
     prefix = f"tagbio_py_{now_ts}_"
     log_file = create_temp_file(prefix=prefix)
-    print('Python log file: {}'.format(log_file), flush=True)
+    print('Logger: "{}", log file: {}'.format(logger_name, log_file), flush=True)
 
     logger = logging.getLogger(logger_name)
 
