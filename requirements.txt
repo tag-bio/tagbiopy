@@ -10,3 +10,4 @@ nbformat
 psutil
 numpy
 scikit-learn
+seaborn
