@@ -46,8 +46,7 @@ stages:
 timeout: 60
 notification:
   recipients:
-  - recipient: '#ci-stage-cluster'
-    notifier: c-qrx5z:n-lrl8w
+  - notifier: c-78zdm:n-6n6m4
+  - notifier: c-qrx5z:n-lrl8w
   condition:
-  - Success
   - Failed
