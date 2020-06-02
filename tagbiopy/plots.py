@@ -134,9 +134,8 @@ def r2_plotly(x, y, title=None):
     )
 
     fig.update_layout(
-        autosize=True,
-        #width=800,
-        #height=800,
+        width=700,
+        height=700,
         xaxis=dict(
             title_text=x.name.replace('->', '\u2192'),
             title_font_size=18, title_font_color='#222222',
