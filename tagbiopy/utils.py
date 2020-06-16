@@ -341,19 +341,21 @@ class TagbioResult:
     def path(self, value):
         if self._path_mutable:
             self.__path = value
+        else:
+            self.__path = None
 
-    def save(self, what='fig'):
+    def save(self, what='fig', **kwargs):
         import matplotlib.figure
         import plotly.graph_objects
 
         if what == 'fig':
             if isinstance(self.fig, plotly.graph_objects.Figure):
                 if self.extension == 'html':
-                    self.fig.write_html(self.path)
+                    self.fig.write_html(self.path, **kwargs)
                 else:
-                    self.fig.write_image(self.path, format=self.extension)
+                    self.fig.write_image(self.path, format=self.extension, **kwargs)
             elif isinstance(self.fig, matplotlib.figure.Figure):
-                self.fig.savefig(self.path, format=self.extension)
+                self.fig.savefig(self.path, format=self.extension, bbox_inches='tight', **kwargs)
             else:
                 message = 'Please create either a matplotlib or plotly figure'
                 raise TagbioPyError(message)
