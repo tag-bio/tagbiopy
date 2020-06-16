@@ -335,7 +335,7 @@ class TagbioResult:
     @path.deleter
     def path(self):
         if self._path_mutable:
-            del self.__path
+            self.__path = None
 
     @path.setter
     def path(self, value):
