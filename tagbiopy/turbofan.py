@@ -1,4 +1,5 @@
 import logging
+import re
 import multiprocessing as mp
 from collections import deque
 
@@ -19,7 +20,49 @@ TRAIN = 'Train data'
 TEST = 'Test data'
 WHATS = (TRAIN, TEST)
 
+FEATURE_AGGREGATION_PATTERN = r'([\S]+)\s(.*)\s(over\s\d+\sCycles)'
+
 logger = logging.getLogger(LOGGER_NAME)
+
+
+def calculate_feature_relative_importance(classifier, features, pattern=FEATURE_AGGREGATION_PATTERN):
+    feature_importances_df = extract_feature_importances(classifier, features)
+    method_interval_pairs = extract_feature_aggregation_methods(features)
+
+    fi = {}
+    regex = re.compile(pattern)
+    for method, interval in method_interval_pairs:
+        rows = [v for v in feature_importances_df.index if v.startswith(method)]
+        fi[method] = feature_importances_df.loc[rows, :]
+        fi[method].columns = [f'{method} {interval}']
+        fi[method].index = [regex.search(v).group(2) for v in features if v.startswith(method)]
+
+    total_fi = pd.concat([fi[method] for method, _ in method_interval_pairs], axis=1).sum(axis=1)
+    total_fi.name = 'Relative importance'
+    total_fi = total_fi.sort_values(ascending=False)
+
+    cum = total_fi.cumsum()
+    cum.name = 'Cumulative contribution'
+
+    return pd.concat([total_fi, cum], axis=1)
+
+
+def extract_feature_aggregation_methods(features, pattern=FEATURE_AGGREGATION_PATTERN):
+    # Take the first word ('Mean' or 'Std') and the last phrase ('over 5 Cycles')
+    regex = re.compile(pattern)
+    return sorted(list(set([regex.search(v).group(1, 3) for v in features])))
+
+
+def extract_feature_importances(classifier, features):
+    ret = pd.DataFrame(
+        data=classifier.feature_importances_,
+        index=features,
+        columns=['Importance'])
+
+    ret = ret.sort_values('Importance', ascending=False) * 100
+    logger.info(f'Feature importances\n{ret}')
+
+    return ret
 
 
 def prepare_data(df, what, fail_within, m, tau):
@@ -129,6 +172,12 @@ def train_n_predict(_df, fail_within, m, tau, classifier_name, **kwargs):
     pr = Preparer(df=_df.head(), what=TRAIN, fail_within=fail_within, m=m, tau=tau)
     logger.debug(pr)
 
+    # Column gymnastics
+    ignore_columns = [v for v in pr.non_measured]
+    outcome_column = set_outcome(fail_within)
+    logger.info(f'ignore_columns {ignore_columns}')
+    logger.info(f'outcome_column "{outcome_column}"')
+
     # Split and prepare train and test data set
     working_df = {what: prepare_data(df=_df[_df['Data set'] == what],
                                      what=what,
@@ -136,31 +185,36 @@ def train_n_predict(_df, fail_within, m, tau, classifier_name, **kwargs):
                                      m=m,
                                      tau=tau)
                   for what in WHATS}
+    logger.debug(working_df[TRAIN].head().T)
+    logger.debug(f'train columns:\n{working_df[TRAIN].columns}')
+
+    # Extract features from the training data. Testing data has the same features.
+    features = [v for v in working_df[TRAIN].columns if v not in ignore_columns]
 
     # Prepare classifier and scaler
     classifier = set_classifier(classifier_name, **kwargs)
     scaler = set_scaler()
 
-    # Column gymnastics
-    ignore_columns = [v for v in pr.non_measured]
-    outcome_column = set_outcome(fail_within)
-    logger.info(f'ignore_columns {ignore_columns}')
-    logger.info(f'outcome_column "{outcome_column}"')
-    logger.debug(working_df[TRAIN].head().T)
-    logger.debug(f'train columns:\n{working_df[TRAIN].columns}')
-
+    # Outcome variable
     y_hat = {}
-    logger.debug('Rescaling predictors')
-    # Rescale
-    features = [v for v in working_df[TRAIN].columns if v not in ignore_columns]
-    x_matrix = {what: scaler.fit_transform(working_df[what][features]) for what in WHATS}
+
+    # Ground truth for bot training and test data
     y = {what: working_df[what][outcome_column] for what in WHATS}
+
+    # Rescale
+    logger.debug('Rescaling predictors')
+    x_matrix = {what: scaler.fit_transform(working_df[what][features]) for what in WHATS}
+
     # Train
     tx = classifier.fit(x_matrix[TRAIN], y[TRAIN])
 
-    # Test on self
+    # Now we have
+    features_importance_df = calculate_feature_relative_importance(tx, features)
+
+    # Test
+    # 1. on self
     y_hat[TRAIN] = tx.predict(x_matrix[TRAIN])
-    # Test in test
+    # 2. on test
     y_hat[TEST] = tx.predict(x_matrix[TEST])
 
     logger.info(f'Test completed')
@@ -174,12 +228,17 @@ def train_n_predict(_df, fail_within, m, tau, classifier_name, **kwargs):
     q.name = f'{outcome_column}, m={m}, tau={tau}, {classifier_name} classifier'
     logger.info(f'\n{q}')
 
+    # Results
+    # For both train and test data, first take the columns that were not used in predictive
+    # modeling.
     return_df = pd.concat([working_df[what][ignore_columns] for what in WHATS])
+    # Prepare outcome
     predicted_outcome = np.append(y_hat[TRAIN], y_hat[TEST])
     outcome_s = pd.Series(data=predicted_outcome, index=return_df.index)
     outcome_s.name = set_predicted_outcome(fail_within, classifier_name)
 
-    return pd.concat([return_df, outcome_s], axis=1)
+    # Return non-predictors and outcome; and features with their relative and cummulative importance
+    return pd.concat([return_df, outcome_s], axis=1), features_importance_df
 
 
 class Preparer:
