@@ -341,6 +341,8 @@ class TagbioResult:
     def path(self, value):
         if self._path_mutable:
             self.__path = value
+        else:
+            self.__path = None
 
     def save(self, what='fig', **kwargs):
         import matplotlib.figure
