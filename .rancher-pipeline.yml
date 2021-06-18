@@ -1,4 +1,9 @@
 stages:
+- name: "Generate VERSION.txt"
+  steps:
+  - runScriptConfig:
+      image: alpine/git
+      shellScript: sh -c 'git rev-parse --short HEAD > VERSION.txt'
 - name: build
   steps:
   - publishImageConfig:
@@ -10,10 +15,10 @@ stages:
 - name: trigger-downstream-pipelines
   steps:
   - runScriptConfig:
-      image: platform-registry.dev.tag.bio/tagbio-ci-pipeline:branch-master
+      image: platform-registry.dev.tag.bio/tagbio-ci-pipeline:branch-${CICD_GIT_BRANCH}
       shellScript: $TAGBIO_CI_PIPELINE_DIR/trigger-pipelines.js
     env:
-      TRIGGER_PIPELINES_BRANCH: master
+      TRIGGER_PIPELINES_BRANCH: ${CICD_GIT_BRANCH}
       TRIGGER_PIPELINES_REPO_FILTER: "/tagbio-fc-jars.git$"
     envFrom:
     - sourceName: rancher-api
@@ -26,23 +31,10 @@ stages:
       sourceKey: RANCHER_PROJECT_ID
     - sourceName: rancher-api
       sourceKey: RANCHER_SECRET_KEY
-  - runScriptConfig:
-      image: platform-registry.dev.tag.bio/tagbio-ci-pipeline:branch-master
-      shellScript: $TAGBIO_CI_PIPELINE_DIR/trigger-pipelines.js
-    env:
-      TRIGGER_PIPELINES_BRANCH: stage
-      TRIGGER_PIPELINES_REPO_FILTER: "/tagbio-fc-jars.git$"
-    envFrom:
-    - sourceName: rancher-api
-      sourceKey: RANCHER_ACCESS_KEY
-    - sourceName: rancher-api
-      sourceKey: RANCHER_BASE_URL
-    - sourceName: rancher-api
-      sourceKey: RANCHER_CLUSTER_ID
-    - sourceName: rancher-api
-      sourceKey: RANCHER_PROJECT_ID
-    - sourceName: rancher-api
-      sourceKey: RANCHER_SECRET_KEY
+branch:
+  include:
+  - master
+  - stage
 timeout: 60
 notification:
   recipients:
