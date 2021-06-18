@@ -1,0 +1,4 @@
+
+
+class FCPyError(Exception):
+    pass

@@ -1,42 +1,23 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+    Setup file for tagbiopy.
+    Use setup.cfg to configure your project.
 
-import os
-import setuptools
+    This file was generated with PyScaffold 3.2.3.
+    PyScaffold helps you to put up the scaffold of your new Python project.
+    Learn more under: https://pyscaffold.org/
+"""
+import sys
+
+from pkg_resources import VersionConflict, require
+from setuptools import setup
+
+try:
+    require('setuptools>=38.3')
+except VersionConflict:
+    print("Error: version of setuptools is too old (<38.3)!")
+    sys.exit(1)
 
 
-BASE_URL = 'https://bitbucket.org/cloudfolks'
-NAME = 'tagbiopy'
-
-
-def install_requirements():
-    ret = []
-    with open('./requirements.txt') as fh:
-        for line in fh:
-            ret.append(line.strip())
-    return ret
-
-
-setuptools.setup(
-    name=NAME,
-    version='0.0.13',
-    description='Provides tag.bio python SDK.',
-    url=os.path.join(BASE_URL, NAME),
-    author='D',
-    author_email='info@tag.bio',
-    license='Proprietary',
-    classifiers=[
-        "Development Status :: 3 - Alpha",
-        "Intended Audience :: Developers",
-        "Topic :: Software Development :: Build Tools",
-        "License :: OSI Approved :: Proprietary",
-        "Programming Language :: Python :: 3.6",
-    ],
-    keywords='utilities',
-    test_suite='nose.collector',
-    tests_require=['nose'],
-    scripts=[
-        os.path.join(NAME, 'bin/connect_tagbio_py')
-    ],
-    install_requires=install_requirements(),
-    packages=setuptools.find_packages()
-)
+if __name__ == "__main__":
+    setup(use_pyscaffold=True)

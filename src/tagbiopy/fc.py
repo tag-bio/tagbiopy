@@ -1,0 +1,543 @@
+import json
+import logging
+import os
+import pandas as pd
+
+from typing import List, Union, Optional
+
+from . import fundamentals
+from .logging import LOGGER_NAME
+from .request import QRequest, SRequest
+from .utils import (check_arg_type, content_to_dataframe, extract_data_reference_type,
+                    list_attributes, list_methods, list_properties, log_exception)
+from .where_clause import check_boolean, set_collection, update
+
+TAGBIO_CONFIG_FILE = ".tagbio.json"
+TAGBIO_HOST = "TAGBIO_HOST"
+TAGBIO_API_KEY = "TAGBIO_API_KEY"
+TAGBIO_BASE_URL = "TAGBIO_BASE_URL"
+LOCALHOST = 'localhost'
+
+logger = logging.getLogger(LOGGER_NAME)
+
+VariableBlockTypes = Union[fundamentals.VariableBlock, List[fundamentals.VariableBlock]]
+CollectionVariableTypes = Union[fundamentals.COLLECTION_VARIABLE_TYPES]
+CollectionTypes = Union[fundamentals.COLLECTION_TYPES]
+AllCollectionTypes = Union[CollectionVariableTypes, CollectionTypes]
+
+
+class FC:
+    """Handles access to the back end and the data. Instantiated with the hostname.
+
+    Properties:
+        * _collections: private dictionary with keys "variable_type" ("categorical",
+          "numeric" or "data-frame-numeric") and variables dictionaries with key str collection
+          name and value Collection instance
+        * categorical_collections: _collections["categorical"]
+        * summary: pd.DataFrame with three columns: name, variable type and number of variables
+        * dataframe_numeric_collections: _collections["data-frame-numeric"]
+        * entity_collection: Collection, with is_entity flag set to True
+        * number_of_variables: int, number of variables, regardless of type
+        * numeric_collections: _collections["numeric"
+
+    Methods:
+        * collections_to_dataframe: Take one or more collection and turn all their variables into a dataframe
+        * get_collection: for a collection name and type, return Collection instance
+        * variables_to_dataframe: for a particular collection, take variables and turn them into a dataframe
+
+    Private methods:
+        * _get_content: returns request.post.content
+        * _prepare_analysis_variables: collateralizes analysis variables
+
+    """
+
+    def __init__(self, host: str = None, api_key:str = None, 
+            base_url: str = None, name:str = None) -> None:
+        logger.info(f'{self.__class__}: Initialize')
+        
+        config_data = self._read_config()
+        
+        # FC host name can either be given explicitly or formed from base url and name
+        self.host = host if host else os.environ.get(TAGBIO_HOST, 
+                config_data.get(TAGBIO_HOST, LOCALHOST))
+        self.base_url = base_url if base_url else os.environ.get(TAGBIO_BASE_URL, 
+                config_data.get(TAGBIO_BASE_URL, LOCALHOST))   
+        self._api_key = api_key if api_key else os.environ.get(TAGBIO_API_KEY, 
+                config_data.get(TAGBIO_API_KEY, None))
+
+        if self.host is None or self.host == "":
+            self.host = f"{self.base_url}/fc-svc/{name}" 
+
+        # Private, to handle API '/q' requests with methods: "collection",
+        # "variable" and "download".
+        self._q = QRequest(self.host, self._api_key)
+        self._s = SRequest(self.host, self._api_key)
+
+        self._entity_collection = None
+        self._summary = None
+
+        # Used to build queries
+        self.analysis_variables = None
+        self.background = None
+
+        # The following get populated through the collections property
+        self.__collections = {}
+
+        logger.debug(f'{self}')
+        logger.info(f'{self!r}: Initialized')
+
+    def _read_config(self) -> dict:
+        # reads in a config file from expected location
+        if os.getenv('HOME') is not None:
+            config_path = os.path.join(os.getenv('HOME'), TAGBIO_CONFIG_FILE)
+
+            if os.path.exists(config_path):
+                with open(config_path, "r") as config_file:
+                    return json.load(config_file)
+
+        return {}
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(host={self.host!r})'
+
+    def __str__(self):
+        ret = f'{self!r}:\n'
+        ret += '  Attributes:\n'
+        ret += '\n'.join([f'    {v}' for v in list_attributes(self, include_private=True)])
+        ret += '\n'
+        ret += '  Properties:\n'
+        ret += '\n'.join([f'    {v}' for v in list_properties(self.__class__, include_private=True)])
+        ret += '\n'
+        ret += '  Methods:\n'
+        ret += '\n'.join([f'    {v}' for v in list_methods(self.__class__, include_private=True)])
+        return ret
+
+    def _prepare(self, variables: VariableBlockTypes) -> list:
+        """Prepare analysis variables by including the entity collection and sorting out
+        situations if a single analysis variable was passed or a list of variables.
+
+        :param variables: VariableBlock or a list of VariableBlocks
+        :return: dict
+        """
+        ret = [self.entity_collection().as_dict]
+        if isinstance(variables, fundamentals.ALL_COLLECTION_VARIABLE_TYPES):
+            ret.append(variables)
+        elif isinstance(variables, list):
+            ret.extend([check_arg_type(v, fundamentals.VariableBlock) for v in variables])
+        else:
+            msg = f'{self!r}: Illegal analysis_variables type {type(variables)}.'
+            msg += f' Should be one of or a list of {fundamentals.ALL_COLLECTION_VARIABLE_TYPES}'
+            log_exception(exception_class=ValueError, message=msg)
+
+        return ret
+
+    @property
+    def _categorical_collections(self):
+        return self._collections['categorical']
+
+    @property
+    def _collections(self) -> dict:
+        """Parse all variables and assign them to their collections
+
+        :return: dict of collections, with keys variable types, and values Collection instances
+        """
+
+        # If the private variable dictionary self.__collections is empty, than do the
+        # parsing. In any case, return the dictionary
+
+        if not any(self.__collections[k] for k in self.__collections):
+            logger.info(f'{self!r}: Initializing _collections: parsing')
+            collections = self._q.collections
+            try:
+                meta = collections['meta']
+            except KeyError as e:
+                logger.debug('Could not find "meta" attribute in collections')
+                logger.info(e, exc_info=True)
+                raise
+            logger.debug(f'{self!r}: meta {meta}')
+
+            try:
+                entity_collection = meta['entity_collection']
+            except KeyError as e:
+                logger.debug('Could not identify "entity_collection" in collections "meta"')
+                logger.info(e, exc_info=True)
+                raise
+            logger.info(f'Entity collection: {entity_collection!r}')
+            self.__collections['entity'] = entity_collection
+            logger.debug(f"{self!r}: entity {self.__collections['entity']!r}")
+
+            results = collections['results']
+            logger.info(f'{self!r}: {len(results)} collections obtained')
+            count = 0
+            for i, kw in enumerate(results):
+                values = kw['values']
+                msg_values = f'results[{i}]: {json.dumps(values, indent=2)}'
+
+                collection = check_arg_type(values['collection'], str)
+
+                variable_type = extract_data_reference_type(values)
+                variable_type = check_arg_type(variable_type, str)
+
+                self.__collections.setdefault(variable_type, {})
+
+                try:
+                    self.__collections[variable_type].setdefault(
+                        collection,
+                        fundamentals.collection_factory(**values)
+                    )
+                except ValueError as e:
+                    msg = f'{e}. {msg_values}'
+                    logger.info(msg, exc_info=True)
+                    continue
+                count += 1
+
+            logger.info(f'{self!r}: {count} collections parsed')
+
+        return self.__collections
+
+    @property
+    def _numeric_collections(self):
+        return self._collections['numeric']
+
+    @property
+    def available_collection_types(self) -> set:
+        return set(self._collections.keys()).intersection(fundamentals.STR_COLLECTION_VARIABLE_TYPES)
+
+    @property
+    def df(self):
+        """Used to initiate buildup of analysis variables and the background.
+
+        Usage: self.df.select(*args).where(...) to prepare the query.
+        Once the query is prepared, download is triggered by chaining with .run() which invokes
+        self.to_dataframe method
+
+        :return: self
+        """
+        self.analysis_variables = []
+        self.background = {}
+        logger.debug(f'{self}: Initialized {self.analysis_variables = }, {self.background = }')
+        return self
+
+    @property
+    def entity_collection(self) -> fundamentals.CategoricalCollection:
+        if self._entity_collection is None:
+            name = str(self._collections['entity'])
+            self._entity_collection = self.get_collection(fundamentals.Categorical(name))
+
+        return self._entity_collection
+
+    @property
+    def number_of_entities(self) -> int:
+        return self.entity_collection.collection_size
+
+    @property
+    def info(self) -> dict:
+        """Get provenance and version info for the FC.
+
+        :return: dict of info returned from /s request
+        """
+        logger.info(f'{self!r}: get info')
+        
+        # perform the s query
+        info = self._s.as_dict
+
+        # replace datetimes...
+        info['data_timestamp'] = self._s.data_timestamp
+        info['start_time'] = self._s.start_time
+        
+        return info
+
+    @property
+    def summary(self) -> pd.DataFrame:
+        """Summarizes the connected fc.
+
+        The first row is guaranteed to be the entity collection, the rest are
+        alphabetically ordered by type and then by name (in case of ties)
+
+        :return: pd.DataFrame with three columns:
+            collection name, collection type and the number of variables
+        """
+        logger.info(f'{self!r}: start summary')
+        if self._summary is None:
+            logger.info(f'{self!r}: No summary available, building')
+            columns = ['Collection', 'Collection Type', 'Size', 'Entities without data']
+            data = []
+            logger.info(f'Available collection types: {self.available_collection_types}')
+            for variable_type in self.available_collection_types:
+                logger.info(f'Work on {variable_type!r} collections')
+                for i, c_str in enumerate(self._collections[variable_type]):
+                    c_shell = fundamentals.variable_block_factory(variable_type)(c_str)
+                    c_obj = self.get_collection(c_shell)
+
+                    logger.debug(f'[{i}]: {c_obj!r}')
+                    line = [
+                        c_obj.collection,
+                        c_obj.variable_type,
+                        c_obj.collection_size,
+                        self.count_nans(c_obj)
+                    ]
+                    data.append(line)
+                logger.info(f'  Parsed {len(self._collections[variable_type])} {variable_type} collections')
+
+            _df = pd.DataFrame(columns=columns, data=data)
+
+            entity_df = _df[_df['Collection'] == self.entity_collection.collection]
+            rest_df = _df[_df['Collection'] != self.entity_collection.collection]
+            rest_df = rest_df.sort_values(by=['Collection Type', 'Collection'])
+
+            # Do not return the entity collection boolean column
+            self._summary = pd.concat([entity_df, rest_df]).reset_index(drop=True)
+
+            # Cast 'Entities without data' column to int
+            self._summary['Entities without data'] = self._summary['Entities without data'].astype('Int64')
+
+        logger.info(f'{self!r}: summary available, shape {self._summary.shape}')
+
+        return self._summary
+
+    def count_nans(self, collection: AllCollectionTypes) -> Union[None, int, pd.DataFrame]:
+
+        if isinstance(collection, fundamentals.COLLECTION_VARIABLE_TYPES):
+            c_obj = self.get_collection(collection)
+        elif isinstance(collection, fundamentals.COLLECTION_TYPES):
+            c_obj = collection
+        else:
+            msg = f'{collection!r}: Invalid type. Should be either {fundamentals.COLLECTION_VARIABLE_TYPES}'
+            msg += f' or {fundamentals.COLLECTION_TYPES}'
+            log_exception(ValueError, msg)
+            return None
+
+        ret = None
+
+        if isinstance(c_obj, fundamentals.CategoricalCollection):
+            ret = self.number_of_entities - c_obj.collection_entity_count
+
+        if isinstance(collection, fundamentals.Numeric):
+            variables = self.list_variables(collection)
+            data = []
+            for variable in variables:
+                var_obj = c_obj.get_variable(variable)
+                nan_count = self.number_of_entities - var_obj.variable_size
+                data.append([variable, nan_count])
+
+            ret = pd.DataFrame(data=data, columns=['Variable', 'Entities without data'])
+            ret.columns.name = f'Collection: {collection.collection!r}'
+
+        return ret
+
+    def get_collection(self, collection: fundamentals.COLLECTION_VARIABLE_TYPES) -> fundamentals.COLLECTION_TYPES:
+        collection = check_arg_type(collection, fundamentals.COLLECTION_VARIABLE_TYPES)
+
+        try:
+            self._collections[collection.type_]
+        except KeyError as e:
+            msg = f'{collection!r}: No such {collection.variable_type} collection'
+            log_exception(TypeError, msg, cause=e)
+
+        try:
+            return self._collections[collection.type_][collection.collection]
+        except KeyError as e:
+            msg = f'{collection!r} not found among {collection.variable_type} collections'
+            log_exception(ValueError, msg, cause=e)
+
+    def list_collections(self, variable_type):
+        try:
+            ret = [v for v in self._collections[variable_type]]
+        except KeyError as e:
+            msg = f'{variable_type!r}: Invalid variable_type. Please chose from {self.available_collection_types!r}'
+            logger.debug(e, exc_info=True)
+            logger.info(msg, exc_info=True)
+            raise ValueError(msg)
+        return ret
+
+    def list_variables(self, collection: Union[fundamentals.COLLECTION_VARIABLE_TYPES], as_generator=False):
+        c = self.get_collection(collection)
+
+        if len(c) == 0:
+            logger.info(f'{c!r}: No variables assigned yet, parsing')
+            variables_obj = self._q.get_variable_obj(analysis_variables=collection)
+            c.add_variables(variables_obj)
+        logger.info(f'{c!r}: {len(c)} variables available')
+
+        if as_generator:
+            return c.variables
+        else:
+            return sorted(c.variables)
+
+    def select(self, *args: Union[str, tuple]):
+
+        for i, arg in enumerate([v for v in args]):
+            logger.debug(f'{i}: {arg}')
+            if isinstance(arg, str):
+                if arg in self._categorical_collections:
+                    self.analysis_variables.append(fundamentals.Categorical(collection=arg))
+                elif arg in self._numeric_collections:
+                    self.analysis_variables.append(fundamentals.Numeric(collection=arg))
+                else:
+                    msg = f'arg[{i}]: {arg!r} neither "categorical" nor "numeric".'
+                    log_exception(TypeError, msg)
+
+            elif isinstance(arg, tuple):
+                # Tuples only make sense for numeric collections. For categorical collections we
+                # report the variable or NaN; for numeric collection variable we get a separate column.
+                # So default behavior is that for categorical variables we keep just collection names,
+                # for numeric variables we specify both collection and variables
+                collection, variable = arg
+                if collection in self._categorical_collections:
+                    self.analysis_variables.append(fundamentals.Categorical(collection))
+                elif collection in self._numeric_collections:
+                    # Allow a list of variables
+                    if isinstance(variable, str):
+                        self.analysis_variables.append(fundamentals.Numeric(collection, variable))
+                    elif isinstance(variable, list):
+                        for v in variable:
+                            self.analysis_variables.append(fundamentals.Numeric(collection, v))
+                else:
+                    msg = f'{i}: arg {arg} collection {collection!r} invalid type, neither "categorical" nor "numeric".'
+                    log_exception(TypeError, msg)
+            elif isinstance(arg, (fundamentals.Categorical, fundamentals.Numeric)):
+                self.analysis_variables.append(arg)
+
+        self.analysis_variables = list(set(self.analysis_variables)) or None
+
+        return self
+
+    def summarize_collection(self, collection: Union[fundamentals.COLLECTION_VARIABLE_TYPES]):
+
+        logger.info(f'Summarize {collection!r}')
+        c_obj = self.get_collection(collection)
+
+        columns = ['Variable', 'Variable Type', 'Size']
+
+        data = []
+        j = None
+        for i, variable_name in enumerate(self.list_variables(collection)):
+            var_obj = c_obj.get_variable(variable_name)
+            collection.variable = variable_name
+            line = [variable_name, collection.variable_type, var_obj.variable_size]
+            data.append(line)
+            if i % 1000000 == 0:
+                logger.debug(f'  variable {i} completed')
+            j = i
+        else:
+            logger.debug(f'  variable {j} completed, last variable')
+
+        df = pd.DataFrame(columns=columns, data=data)
+        if isinstance(collection, fundamentals.Numeric):
+            nan_df = self.count_nans(collection)
+            df = pd.concat([df, nan_df], axis=1)
+
+        df.columns.name = collection.collection
+        if isinstance(c_obj, fundamentals.CategoricalCollection):
+            df.index.name = f'Number of entities: {c_obj.collection_entity_count}'
+
+        # Clear variable for logging
+        collection.variable = None
+        logger.info(f'{collection!r}: variable summary shape: {df.shape}')
+
+        return df
+
+    def to_dataframe(self,
+                     analysis_variables: VariableBlockTypes,
+                     background: Optional[fundamentals.SetBlock] = None,
+                     include_background: bool = False,
+                     **kwargs) -> pd.DataFrame:
+        """Takes categorical and numeric collections and turns them into a
+        dataframe. The dataframe index is set to the entity_collection. The dataframe
+        is then obtained with a single API '/q' call to method "download"
+
+        :param analysis_variables: VariableBlock or a list of VariableBlocks
+        :param background: None or a SetBlock
+        :param include_background: bool, default False. If set to True, include the background as additional column
+        :param kwargs: dict, to pass to pd.read_csv
+        :return: pd.DataFrame, with collections as columns, and entity_collection set as index
+        """
+        logger.info(f'{self!r}: to_dataframe')
+
+        if background is None and include_background is True:
+            msg = f'{self!r}: Invalid background selection: {background=}, {include_background=}'
+            log_exception(ValueError, msg)
+
+        logger.info(f'{self!r}: {analysis_variables = }')
+        logger.info(f'{self!r}: {background = }')
+
+        _analysis_variables = self._prepare(analysis_variables)
+
+        if include_background:
+            _analysis_variables.append(background)
+
+        content = self._q.get_content(analysis_variables=_analysis_variables, background=background)
+
+        ret = content_to_dataframe(content=content,
+                                   index=self.entity_collection.collection,
+                                   **kwargs)
+        logger.info(f'{self!r}: dataframe shape {ret.shape}')
+        return ret
+
+    def run(self, **kwargs):
+
+        if not self.analysis_variables and not self.background:
+            msg = f'{self}: Neither analysis_variables nor background specified'
+            log_exception(RuntimeError, msg)
+
+        # Drop duplicates, again. If lists empty, turn them to None to avoid triggering
+        # HTTP 500 errors
+        self.analysis_variables = list(set(self.analysis_variables)) or None
+        self.background = self.background or None
+
+        return self.to_dataframe(
+            analysis_variables=self.analysis_variables,
+            background=self.background,
+            **kwargs
+        )
+
+    def where(self, *args):
+        """
+        If starts with tuple, self.background needs to be empty.
+        :param self:
+        :param args:
+        :return:
+        """
+
+        compound_operator = None
+        first_index = 0
+        # Check first argument:
+        if isinstance(args[0], tuple):
+            if len(args) % 2 == 0:
+                msg = f'Passed even number of arguments'
+                log_exception(RuntimeError, msg)
+            if self.background:
+                msg = f'Cannot add {args[0] = } to background without a boolean operator first'
+                log_exception(RuntimeError, msg)
+
+        elif isinstance(args[0], str):
+            compound_operator = args[0]
+
+            check_boolean(compound_operator)
+            if not self.background:
+                msg = f'Cannot specify boolean {compound_operator = } for undefined background'
+                log_exception(RuntimeError, msg)
+
+            first_index = 1
+
+        background = None
+        operator_stack = []
+        for i, arg in enumerate(args[first_index:]):
+            if i == 0:
+                background = set_collection(arg)
+            else:
+                if i % 2 == 0:
+                    operator = operator_stack.pop()
+                    background = update(background, operator, arg)
+                else:
+                    operator_stack.append(arg)
+
+        if self.background:
+            self.background = fundamentals.CategoricalCompound(
+                criteria=[self.background, background],
+                operator=compound_operator
+            )
+        else:
+            self.background = background
+
+        return self
