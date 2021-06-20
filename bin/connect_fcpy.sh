@@ -3,7 +3,7 @@
 # The following works only if you used pyenv to create a virtualenv in which this package
 # is installed
 
-export PYENV_VERSION=fcpy
+export PYENV_VERSION=tagbiopy
 
 fc_packet=$1
 user_function=$2
