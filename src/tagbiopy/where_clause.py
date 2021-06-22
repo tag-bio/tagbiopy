@@ -1,5 +1,5 @@
-from fcpy import fundamentals
-from fcpy.utils import log_exception
+from tagbiopy import fundamentals
+from tagbiopy.utils import log_exception
 
 BOOLEAN_OPERATORS = ('OR', 'AND')
 
