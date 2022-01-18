@@ -1,7 +1,7 @@
 #! /usr/bin/env sh
 set -ex
 
-mamba install -c conda-forge python=3.8 pip
+mamba install -y -c conda-forge python=3.8 pip
 python -V
 pip --version
 
