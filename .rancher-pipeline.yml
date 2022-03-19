@@ -38,7 +38,6 @@ branch:
 timeout: 60
 notification:
   recipients:
-  - notifier: c-78zdm:n-6n6m4
-  - notifier: c-589tr:n-2245x
+  - notifier: c-ptwnq:n-h4lq7
   condition:
   - Failed
