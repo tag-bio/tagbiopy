@@ -3,7 +3,7 @@ stages:
   steps:
   - runScriptConfig:
       image: alpine/git
-      shellScript: sh -c 'git rev-parse --short HEAD > VERSION.txt'
+      shellScript: sh -c 'git config --global --add safe.directory $PWD && git describe --tags --always > ./VERSION.txt'
 - name: build
   steps:
   - publishImageConfig:
@@ -38,7 +38,6 @@ branch:
 timeout: 60
 notification:
   recipients:
-  - notifier: c-78zdm:n-6n6m4
-  - notifier: c-589tr:n-2245x
+  - notifier: c-ptwnq:n-h4lq7
   condition:
   - Failed
