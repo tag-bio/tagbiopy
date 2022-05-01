@@ -3,7 +3,7 @@ stages:
   steps:
   - runScriptConfig:
       image: alpine/git
-      shellScript: sh -c 'git rev-parse --short HEAD > VERSION.txt'
+      shellScript: sh -c 'git config --global --add safe.directory $PWD && git describe --tags --always > ./VERSION.txt'
 - name: build
   steps:
   - publishImageConfig:
