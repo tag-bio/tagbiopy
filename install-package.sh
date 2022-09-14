@@ -7,7 +7,7 @@ echo "**** realpath=$(realpath $0)"
 echo "**** dirname realpath=$(dirname $(realpath $0) )"
 echo "**** SCRIPT_DIR=$SCRIPT_DIR"
 
-echo "*** Building tagbio python library
+echo "*** Building tagbio python library"
 cd $SCRIPT_DIR 
 python setup.py sdist
 
