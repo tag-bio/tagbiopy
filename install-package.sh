@@ -7,8 +7,12 @@ echo "**** realpath=$(realpath $0)"
 echo "**** dirname realpath=$(dirname $(realpath $0) )"
 echo "**** SCRIPT_DIR=$SCRIPT_DIR"
 
+echo "*** Building tagbio python library
+cd $SCRIPT_DIR 
+python setup.py sdist
+
 echo "*** Installing tagbio python library to $SCRIPT_DIR"
-pip install -e $SCRIPT_DIR
+pip install $SCRIPT_DIR/$(ls -d dist/*)
 
 apt-get clean -y
 apt-get autoremove -y
