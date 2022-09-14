@@ -12,7 +12,7 @@ cd $SCRIPT_DIR
 python setup.py sdist
 
 echo "*** Installing tagbio python library to $SCRIPT_DIR"
-pip install $SCRIPT_DIR/$(ls -d dist/*)
+pip install $SCRIPT_DIR/dist/*
 
 apt-get clean -y
 apt-get autoremove -y
