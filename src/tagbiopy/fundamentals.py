@@ -11,7 +11,7 @@ from .utils import check_arg_type, check_list_arg_types, extract_data_reference_
 
 logger = logging.getLogger(LOGGER_NAME)
 
-__all__ = ['to_json', 'Categorical', 'Numeric', 'DataFrameCategorical', 'DataFrameNumeric', 'CategoricalBatch',
+__all__ = ['to_json', 'Categorical', 'Numeric', 'DataFrameCategorical', 'NumericMatrix', 'CategoricalBatch',
            'CategoricalCompound'
            ]
 
@@ -277,11 +277,11 @@ class DataFrameCategorical(DataFrameImpl, DataFrameCategoricalBlock):
         super().__init__(collection, variable, columns)
 
 
-class DataFrameNumericBlock(DataFrameBlock):
+class NumericMatrixBlock(DataFrameBlock):
     pass
 
 
-class DataFrameNumeric(DataFrameImpl, DataFrameNumericBlock):
+class NumericMatrix(DataFrameImpl, NumericMatrixBlock):
     type_ = 'numeric-matrix'
 
     def __init__(self, collection=None, variable=None, columns=None):
@@ -343,16 +343,16 @@ class NumericCompound(VariableBlockImpl, NumericBlock):
 
 
 CATEGORICAL_COLLECTION_VARIABLE_TYPES = (Categorical, CategoricalBatch, CategoricalCompound, NumericSlice)
-DATAFRAME_COLLECTION_VARIABLE_TYPES = (DataFrameCategorical, DataFrameNumeric)
+DATAFRAME_COLLECTION_VARIABLE_TYPES = (DataFrameCategorical, NumericMatrix)
 NUMERIC_COLLECTION_VARIABLE_TYPES = (Numeric,)
 
 ALL_COLLECTION_VARIABLE_TYPES = (
     Categorical, Numeric, CategoricalBatch, CategoricalCompound, NumericSlice,
-    DataFrameCategorical, DataFrameNumeric
+    DataFrameCategorical, NumericMatrix
 )
 
 COMMON_COLLECTION_VARIABLE_TYPES = (Categorical, Numeric, CategoricalBatch, CategoricalCompound, NumericSlice)
-COLLECTION_VARIABLE_TYPES = (Categorical, DataFrameCategorical, DataFrameNumeric, Numeric)
+COLLECTION_VARIABLE_TYPES = (Categorical, DataFrameCategorical, NumericMatrix, Numeric)
 STR_COLLECTION_VARIABLE_TYPES = tuple([v.type_ for v in COLLECTION_VARIABLE_TYPES])
 
 
@@ -361,7 +361,7 @@ def variable_block_factory(variable_type: str) -> Union[ALL_COLLECTION_VARIABLE_
     Turns str to variable_type object
         'categorical' to Categorical
         'data-frame-categorical' to DataFrameCategorical
-        'data-frame-numeric' to DataFrameNumeric
+        'data-frame-numeric' to NumericMatrix
         'numeric' to Numeric
 
     :param variable_type: str, one of
@@ -494,8 +494,8 @@ class DataFrameCategoricalCollection(_Collection):
     type_ = DataFrameCategorical.type_
 
 
-class DataFrameNumericCollection(_Collection):
-    type_ = DataFrameNumeric.type_
+class NumericMatrixCollection(_Collection):
+    type_ = NumericMatrix.type_
 
 
 class NumericCollection(_Collection):
@@ -505,7 +505,7 @@ class NumericCollection(_Collection):
 COLLECTION_TYPES = (
     CategoricalCollection,
     DataFrameCategoricalCollection,
-    DataFrameNumericCollection,
+    NumericMatrixCollection,
     NumericCollection
 )
 
