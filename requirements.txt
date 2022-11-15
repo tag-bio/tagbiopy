@@ -17,10 +17,10 @@
 #
 
 inflection
-matplotlib
-numpy
-pandas
-plotly
-pytypes
-requests
-sklearn
+matplotlib==3.6.2
+numpy==1.23.4
+pandas==1.5.1
+plotly==5.11.0
+pytypes==1.0b10
+requests==2.28.1
+sklearn==0.0
