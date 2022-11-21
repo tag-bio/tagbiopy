@@ -435,6 +435,9 @@ class FC:
         collection.variable = None
         logger.info(f'{collection!r}: variable summary shape: {df.shape}')
 
+        # Column "Variable" may duplicated due to the count_nans method
+        return df.loc[:, ~df.columns.duplicated()]
+
         return df
 
     def to_dataframe(self,
