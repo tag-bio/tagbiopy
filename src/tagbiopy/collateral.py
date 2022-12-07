@@ -5,10 +5,9 @@ import re
 
 import inflection
 
-from .logging import LOGGER_NAME
-from .utils import generate_repr, log_exception
+from tagbiopy import logger
+from tagbiopy.utils import generate_repr, log_exception
 
-logger = logging.getLogger(LOGGER_NAME)
 
 DEFAULT_DIR = '/tagbio/fluxcapacitor/protocol/defaults/arguments'
 ARGUMENT_SET_FILTER = os.path.join(DEFAULT_DIR, 'argument_sets/argument_set_filter.json')

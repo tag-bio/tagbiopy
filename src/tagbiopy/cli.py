@@ -2,16 +2,12 @@
 
 import argparse
 import json
-import logging
 
 from typing import Dict
 
-from tagbiopy.logging import initialize_logger
+from tagbiopy import logger
 from tagbiopy.protocol import load_function, TagbioData, TagbioResult
-from tagbiopy.utils import create_temp_file, log_exception, now, print_ts
-
-
-logger = initialize_logger(level=logging.DEBUG)
+from tagbiopy.utils import create_temp_file, now, print_ts
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -79,7 +75,6 @@ def run():
 
 
 def main():
-
     try:
         run()
     except Exception as e:

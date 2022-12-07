@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from pkg_resources import get_distribution, DistributionNotFound
 
-from .logging import initialize_logger
+from tagbiopy.logging import initialize_logger
 
 
 logger = initialize_logger()
