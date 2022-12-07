@@ -134,6 +134,7 @@ class _Request(ABC):
         if self._api_key is not None and self._api_key != "":
             api_data = self._api_key.split(":")
             if len(api_data) != 2:
+                print(api_data)
                 msg = f'{repr(self)}: invalid api key'
                 log_exception(ValueError, msg)
             else:
