@@ -4,8 +4,8 @@ import requests
 
 from abc import ABC, abstractmethod
 
-from .logging import LOGGER_NAME
-from .utils import list_attributes, list_methods, list_properties, log_exception, to_json
+from tagbiopy import logger
+from tagbiopy.utils import list_attributes, list_methods, list_properties, log_exception, to_json
 
 SCHEME = 'https'
 TIMEOUT = None
@@ -15,8 +15,6 @@ API_METHODS = ('/a', '/p', '/q', '/s', '/t')
 
 # In /q requests
 HEADER_DELIMITER=': '
-
-logger = logging.getLogger(LOGGER_NAME)
 
 
 class _Request(ABC):

@@ -5,10 +5,7 @@ import pandas as pd
 import matplotlib.figure
 import plotly.graph_objects as go
 
-from .logging import LOGGER_NAME
-
-
-logger = logging.getLogger(LOGGER_NAME)
+from tagbiopy import logger
 
 
 def _create_fig_and_ax():

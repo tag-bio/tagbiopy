@@ -5,10 +5,10 @@ import pandas as pd
 
 from typing import List, Union, Optional
 
-from . import fundamentals
-from .logging import LOGGER_NAME
-from .request import QRequest, SRequest
-from .utils import (check_arg_type, content_to_dataframe, extract_data_reference_type,
+from tagbiopy import logger
+from tagbiopy import fundamentals
+from tagbiopy.request import QRequest, SRequest
+from tagbiopy.utils import (check_arg_type, content_to_dataframe, extract_data_reference_type,
                     list_attributes, list_methods, list_properties, log_exception)
 from .where_clause import check_boolean, set_collection, update
 
@@ -18,7 +18,6 @@ TAGBIO_API_KEY = "TAGBIO_API_KEY"
 TAGBIO_BASE_URL = "TAGBIO_BASE_URL"
 LOCALHOST = 'localhost'
 
-logger = logging.getLogger(LOGGER_NAME)
 
 VariableBlockTypes = Union[fundamentals.VariableBlock, List[fundamentals.VariableBlock]]
 CollectionVariableTypes = Union[fundamentals.COLLECTION_VARIABLE_TYPES]
@@ -51,7 +50,7 @@ class FC:
 
     """
 
-    def __init__(self, host: str = None, api_key:str = None, 
+    def __init__(self, host: str = None, api_key:str = None,
             base_url: str = None, name:str = None) -> None:
         logger.info(f'{self.__class__}: Initialize')
         

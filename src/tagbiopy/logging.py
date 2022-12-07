@@ -1,7 +1,5 @@
 import logging
 
-from .utils import create_temp_file, now
-
 
 LOG_FORMAT = '{asctime} {levelname} {name} {module}.{funcName}, line {lineno}: {message}'
 LOGGER_NAME = __package__
@@ -11,11 +9,18 @@ __all__ = ['initialize_logger', 'LOGGER_NAME']
 
 
 def _create_log_file():
-    prefix = f"{__package__}_{now('_')}_"
-    return create_temp_file(prefix=prefix)
+    import datetime
+    import tempfile
+
+    time_stamp = datetime.datetime.now().strftime('%F %X').replace(':', '-').replace(' ', '_')
+    prefix = f"{__package__}_{time_stamp}_"
+
+    _, log_file = tempfile.mkstemp(prefix=prefix, suffix='.log')
+
+    return log_file
 
 
-def initialize_logger(name=LOGGER_NAME, level=logging.INFO, fmt=LOG_FORMAT):
+def initialize_logger(name=LOGGER_NAME, level=logging.DEBUG, fmt=LOG_FORMAT):
 
     logger = logging.getLogger(name)
     logger.setLevel(level)

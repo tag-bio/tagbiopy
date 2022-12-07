@@ -6,10 +6,9 @@ import sys
 
 from typing import List, Union
 
-from .logging import LOGGER_NAME
-from .utils import check_arg_type, check_list_arg_types, extract_data_reference_type, get_typename, list_attributes, log_exception
+from tagbiopy import logger
+from tagbiopy.utils import check_arg_type, check_list_arg_types, extract_data_reference_type, get_typename, list_attributes, log_exception
 
-logger = logging.getLogger(LOGGER_NAME)
 
 __all__ = ['to_json', 'Categorical', 'Numeric', 'DataFrameCategorical', 'NumericMatrix', 'CategoricalBatch',
            'CategoricalCompound'

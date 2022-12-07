@@ -6,7 +6,7 @@ import os
 
 import pandas as pd
 
-logger = logging.getLogger(__package__)
+from tagbiopy import logger
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 

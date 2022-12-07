@@ -5,11 +5,9 @@ import os
 import pandas as pd
 import requests
 
-from .fc import FC
-from .logging import LOGGER_NAME
-from .utils import content_to_dataframe, load_json, log_exception
-
-logger = logging.getLogger(LOGGER_NAME)
+from tagbiopy import logger
+from tagbiopy.fc import FC
+from tagbiopy.utils import content_to_dataframe, load_json, log_exception
 
 
 def flatten_single_element_list(_dict):
