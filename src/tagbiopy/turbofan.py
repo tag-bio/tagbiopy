@@ -9,8 +9,8 @@ import pandas as pd
 from sklearn import preprocessing
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
 
-from .protocol import TagbioData, TagbioResult
-from .logging import LOGGER_NAME
+from tagbiopy import logger
+from tagbiopy.protocol import TagbioData, TagbioResult
 
 ID = 'Aircraft engine ID'
 OUTCOME = 'Outcome: RUL - Remaining useful life'
@@ -21,8 +21,6 @@ TEST = 'Test data'
 WHATS = (TRAIN, TEST)
 
 FEATURE_AGGREGATION_PATTERN = r'([\S]+)\s(.*)\s(over\s\d+\sCycles)'
-
-logger = logging.getLogger(LOGGER_NAME)
 
 
 def calculate_feature_relative_importance(classifier, features, pattern=FEATURE_AGGREGATION_PATTERN):

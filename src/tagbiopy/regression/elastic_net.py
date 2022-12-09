@@ -7,10 +7,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.model_selection import LeaveOneOut, cross_val_predict
 from sklearn.linear_model import ElasticNetCV
 
-from ..logging import LOGGER_NAME
-
-
-logger = logging.getLogger(LOGGER_NAME)
+from tagbiopy import logger
 
 
 def create_pipeline(impute_missing_values=True, **kwargs) -> Pipeline:

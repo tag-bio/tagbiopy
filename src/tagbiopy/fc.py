@@ -1,9 +1,8 @@
 import json
-import logging
 import os
-import pandas as pd
-
 from typing import List, Union, Optional
+
+import pandas as pd
 
 from tagbiopy import logger
 from tagbiopy import fundamentals
