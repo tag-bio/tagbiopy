@@ -1,5 +1,6 @@
 import json
 import os
+
 from typing import List, Union, Optional
 
 import pandas as pd
@@ -8,27 +9,43 @@ from tagbiopy import logger
 from tagbiopy import fundamentals
 from tagbiopy.request import QRequest, SRequest
 from tagbiopy.utils import (check_arg_type, content_to_dataframe, extract_data_reference_type,
-                    list_attributes, list_methods, list_properties, log_exception)
+                            list_attributes, list_methods, list_properties, log_exception)
 from .where_clause import check_boolean, set_collection, update
 
-TAGBIO_CONFIG_FILE = ".tagbio.json"
-TAGBIO_HOST = "TAGBIO_HOST"
-TAGBIO_API_KEY = "TAGBIO_API_KEY"
-TAGBIO_BASE_URL = "TAGBIO_BASE_URL"
+VariableBlockTypes = Union[fundamentals.VariableBlock, List[fundamentals.VariableBlock]]
+CollectionDataFunctionTypes = Union[fundamentals.COLLECTION_DATA_FUNCTION_TYPES]
+CollectionTypes = Union[fundamentals.COLLECTION_TYPES]
+AllCollectionTypes = Union[CollectionDataFunctionTypes, CollectionTypes]
+
+TAGBIO_CONFIG_FILE = '.tagbio.json'
+TAGBIO_HOST = 'TAGBIO_HOST'
+TAGBIO_API_KEY = 'TAGBIO_API_KEY'
+TAGBIO_BASE_URL = 'TAGBIO_BASE_URL'
 LOCALHOST = 'localhost'
 
 
-VariableBlockTypes = Union[fundamentals.VariableBlock, List[fundamentals.VariableBlock]]
-CollectionVariableTypes = Union[fundamentals.COLLECTION_VARIABLE_TYPES]
-CollectionTypes = Union[fundamentals.COLLECTION_TYPES]
-AllCollectionTypes = Union[CollectionVariableTypes, CollectionTypes]
+def setup_local_env():
+    try:
+        path = os.path.join(os.getenv('HOME'), TAGBIO_CONFIG_FILE)
+        with open(path) as fh:
+            env = json.load(fh)
+    except FileNotFoundError as e:
+        logger.debug(e)
+        env = {}
+
+    return dict(
+        HOST=os.environ.get('TAGBIO_HOST', env.get('TAGBIO_HOST')),
+        API_KEY=os.environ.get('TAGBIO_API_KEY', env.get('TAGBIO_API_KEY')),
+        BASE_URL=os.environ.get('TAGBIO_BASE_URL', env.get('TAGBIO_BASE_URL')),
+        LOCALHOST=os.environ.get('LOCALHOST', env.get('LOCALHOST', LOCALHOST))
+    )
 
 
 class FC:
     """Handles access to the back end and the data. Instantiated with the hostname.
 
     Properties:
-        * _collections: private dictionary with keys "variable_type" ("categorical",
+        * _collections: private dictionary with keys "data_function_type" ("categorical",
           "numeric" or "data-frame-numeric") and variables dictionaries with key str collection
           name and value Collection instance
         * categorical_collections: _collections["categorical"]
@@ -49,27 +66,23 @@ class FC:
 
     """
 
-    def __init__(self, host: str = None, api_key:str = None,
-            base_url: str = None, name:str = None) -> None:
+    def __init__(self, host: str = None, api_key: str = None,
+                 base_url: str = None, name: str = None) -> None:
         logger.info(f'{self.__class__}: Initialize')
-        
-        config_data = self._read_config()
-        
-        # FC host name can either be given explicitly or formed from base url and name
-        self.host = host if host else os.environ.get(TAGBIO_HOST, 
-                config_data.get(TAGBIO_HOST, LOCALHOST))
-        self.base_url = base_url if base_url else os.environ.get(TAGBIO_BASE_URL, 
-                config_data.get(TAGBIO_BASE_URL, LOCALHOST))   
-        self._api_key = api_key if api_key else os.environ.get(TAGBIO_API_KEY, 
-                config_data.get(TAGBIO_API_KEY, None))
 
-        if self.host is None or self.host == "":
-            self.host = f"{self.base_url}/fc-svc/{name}" 
+        # Set up local env for authentication
+        self.env = setup_local_env()
+
+        # Use properties to set variables
+        self._host = host
+        self._base_url = base_url
+        self._api_key = api_key
+        self.name = name
 
         # Private, to handle API '/q' requests with methods: "collection",
         # "variable" and "download".
-        self._q = QRequest(self.host, self._api_key)
-        self._s = SRequest(self.host, self._api_key)
+        self._q_request = None
+        self._s_request = None
 
         self._entity_collection = None
         self._summary = None
@@ -81,50 +94,31 @@ class FC:
         # The following get populated through the collections property
         self.__collections = {}
 
-        logger.debug(f'{self}')
         logger.info(f'{self!r}: Initialized')
 
-    def _read_config(self) -> dict:
-        # reads in a config file from expected location
-        if os.getenv('HOME') is not None:
-            config_path = os.path.join(os.getenv('HOME'), TAGBIO_CONFIG_FILE)
-
-            if os.path.exists(config_path):
-                with open(config_path, "r") as config_file:
-                    return json.load(config_file)
-
-        return {}
-
     def __repr__(self):
-        return f'{self.__class__.__name__}(host={self.host!r})'
-
-    def __str__(self):
-        ret = f'{self!r}:\n'
-        ret += '  Attributes:\n'
-        ret += '\n'.join([f'    {v}' for v in list_attributes(self, include_private=True)])
-        ret += '\n'
-        ret += '  Properties:\n'
-        ret += '\n'.join([f'    {v}' for v in list_properties(self.__class__, include_private=True)])
-        ret += '\n'
-        ret += '  Methods:\n'
-        ret += '\n'.join([f'    {v}' for v in list_methods(self.__class__, include_private=True)])
-        return ret
+        str_repr = f'{self.__class__.__name__}('
+        if self.host is not None:
+            str_repr += f'host={self.host}, '
+        if self.api_key is not None:
+            str_repr += f'api_key={self.api_key!r}, '
+        return str_repr
 
     def _prepare(self, variables: VariableBlockTypes) -> list:
         """Prepare analysis variables by including the entity collection and sorting out
         situations if a single analysis variable was passed or a list of variables.
 
-        :param variables: VariableBlock or a list of VariableBlocks
+        param variables: VariableBlock or a list of VariableBlocks
         :return: dict
         """
         ret = [self.entity_collection().as_dict]
-        if isinstance(variables, fundamentals.ALL_COLLECTION_VARIABLE_TYPES):
+        if isinstance(variables, fundamentals.ALL_COLLECTION_DATA_FUNCTION_TYPES):
             ret.append(variables)
         elif isinstance(variables, list):
             ret.extend([check_arg_type(v, fundamentals.VariableBlock) for v in variables])
         else:
             msg = f'{self!r}: Illegal analysis_variables type {type(variables)}.'
-            msg += f' Should be one of or a list of {fundamentals.ALL_COLLECTION_VARIABLE_TYPES}'
+            msg += f' Should be one of or a list of {fundamentals.ALL_COLLECTION_DATA_FUNCTION_TYPES}'
             log_exception(exception_class=ValueError, message=msg)
 
         return ret
@@ -140,12 +134,12 @@ class FC:
         :return: dict of collections, with keys variable types, and values Collection instances
         """
 
-        # If the private variable dictionary self.__collections is empty, than do the
+        # If the private variable dictionary self.__collections is empty, then do the
         # parsing. In any case, return the dictionary
 
         if not any(self.__collections[k] for k in self.__collections):
             logger.info(f'{self!r}: Initializing _collections: parsing')
-            collections = self._q.collections
+            collections = self.q_request.collections
             try:
                 meta = collections['meta']
             except KeyError as e:
@@ -173,13 +167,13 @@ class FC:
 
                 collection = check_arg_type(values['collection'], str)
 
-                variable_type = extract_data_reference_type(values)
-                variable_type = check_arg_type(variable_type, str)
+                data_function_type = extract_data_reference_type(values)
+                data_function_type = check_arg_type(data_function_type, str)
 
-                self.__collections.setdefault(variable_type, {})
+                self.__collections.setdefault(data_function_type, {})
 
                 try:
-                    self.__collections[variable_type].setdefault(
+                    self.__collections[data_function_type].setdefault(
                         collection,
                         fundamentals.collection_factory(**values)
                     )
@@ -198,8 +192,20 @@ class FC:
         return self._collections['numeric']
 
     @property
+    def api_key(self) -> str:
+        if self._api_key is None:
+            self._api_key = self.env.get('API_KEY')
+        return self._api_key
+
+    @property
     def available_collection_types(self) -> set:
-        return set(self._collections.keys()).intersection(fundamentals.STR_COLLECTION_VARIABLE_TYPES)
+        return set(self._collections.keys()).intersection(fundamentals.STR_COLLECTION_DATA_FUNCTION_TYPES)
+
+    @property
+    def base_url(self) -> str:
+        if self._base_url is None:
+            self._base_url = self.env.get('API_KEY')
+        return self._base_url
 
     @property
     def df(self):
@@ -225,8 +231,15 @@ class FC:
         return self._entity_collection
 
     @property
-    def number_of_entities(self) -> int:
-        return self.entity_collection.collection_size
+    def host(self):
+        if self._host is None:
+            self._host = self.env.get('HOST')
+            if self._host is None or self._host == '':
+                if self.base_url is not None and self.name is not None:
+                    self._host = f'{self.base_url}/fc-svc/{self.name}'
+                else:
+                    self._host = self.env.get('LOCALHOST')
+        return self._host
 
     @property
     def info(self) -> dict:
@@ -235,15 +248,31 @@ class FC:
         :return: dict of info returned from /s request
         """
         logger.info(f'{self!r}: get info')
-        
-        # perform the s query
-        info = self._s.as_dict
 
-        # replace datetimes...
-        info['data_timestamp'] = self._s.data_timestamp
-        info['start_time'] = self._s.start_time
-        
+        # perform the s query
+        info = self.s_request.as_dict
+
+        # replace time stamps
+        info['data_timestamp'] = self.s_request.data_timestamp
+        info['start_time'] = self.s_request.start_time
+
         return info
+
+    @property
+    def number_of_entities(self) -> int:
+        return self.entity_collection.collection_size
+
+    @property
+    def q_request(self):
+        if self._q_request is None:
+            self._q_request = QRequest(self.host, self.api_key)
+        return self._q_request
+
+    @property
+    def s_request(self):
+        if self._s_request is None:
+            self._s_request = SRequest(self.host, self.api_key)
+        return self._s_request
 
     @property
     def summary(self) -> pd.DataFrame:
@@ -261,21 +290,21 @@ class FC:
             columns = ['Collection', 'Collection Type', 'Size', 'Entities without data']
             data = []
             logger.info(f'Available collection types: {self.available_collection_types}')
-            for variable_type in self.available_collection_types:
-                logger.info(f'Work on {variable_type!r} collections')
-                for i, c_str in enumerate(self._collections[variable_type]):
-                    c_shell = fundamentals.variable_block_factory(variable_type)(c_str)
+            for data_function_type in self.available_collection_types:
+                logger.info(f'Work on {data_function_type!r} collections')
+                for i, c_str in enumerate(self._collections[data_function_type]):
+                    c_shell = fundamentals.variable_block_factory(data_function_type)(c_str)
                     c_obj = self.get_collection(c_shell)
 
                     logger.debug(f'[{i}]: {c_obj!r}')
                     line = [
                         c_obj.collection,
-                        c_obj.variable_type,
+                        c_obj.data_function_type,
                         c_obj.collection_size,
                         self.count_nans(c_obj)
                     ]
                     data.append(line)
-                logger.info(f'  Parsed {len(self._collections[variable_type])} {variable_type} collections')
+                logger.info(f'  Parsed {len(self._collections[data_function_type])} {data_function_type} collections')
 
             _df = pd.DataFrame(columns=columns, data=data)
 
@@ -295,12 +324,12 @@ class FC:
 
     def count_nans(self, collection: AllCollectionTypes) -> Union[None, int, pd.DataFrame]:
 
-        if isinstance(collection, fundamentals.COLLECTION_VARIABLE_TYPES):
+        if isinstance(collection, fundamentals.COLLECTION_DATA_FUNCTION_TYPES):
             c_obj = self.get_collection(collection)
         elif isinstance(collection, fundamentals.COLLECTION_TYPES):
             c_obj = collection
         else:
-            msg = f'{collection!r}: Invalid type. Should be either {fundamentals.COLLECTION_VARIABLE_TYPES}'
+            msg = f'{collection!r}: Invalid type. Should be either {fundamentals.COLLECTION_DATA_FUNCTION_TYPES}'
             msg += f' or {fundamentals.COLLECTION_TYPES}'
             log_exception(ValueError, msg)
             return None
@@ -323,37 +352,50 @@ class FC:
 
         return ret
 
-    def get_collection(self, collection: fundamentals.COLLECTION_VARIABLE_TYPES) -> fundamentals.COLLECTION_TYPES:
-        collection = check_arg_type(collection, fundamentals.COLLECTION_VARIABLE_TYPES)
+    def _details(self):
+        attributes = '\n'.join([f'    {v}' for v in list_attributes(self, include_private=True)])
+        properties = '\n'.join([f'    {v}' for v in list_properties(self.__class__, include_private=True)])
+        methods = '\n'.join([f'    {v}' for v in list_methods(self.__class__, include_private=True)])
+
+        ret = f'{self!r}:\n'
+        ret += f'  Attributes:\n{attributes}\n'
+        ret += f'  Properties:\n{properties}\n'
+        ret += f'  Methods:\n{methods}\n'
+
+        return ret
+
+    def get_collection(self, collection: fundamentals.COLLECTION_DATA_FUNCTION_TYPES) -> fundamentals.COLLECTION_TYPES:
+        collection = check_arg_type(collection, fundamentals.COLLECTION_DATA_FUNCTION_TYPES)
 
         try:
             self._collections[collection.type_]
         except KeyError as e:
-            msg = f'{collection!r}: No such {collection.variable_type} collection'
+            msg = f'{collection!r}: No such {collection.data_function_type} collection'
             log_exception(TypeError, msg, cause=e)
 
         try:
             return self._collections[collection.type_][collection.collection]
         except KeyError as e:
-            msg = f'{collection!r} not found among {collection.variable_type} collections'
+            msg = f'{collection!r} not found among {collection.data_function_type} collections'
             log_exception(ValueError, msg, cause=e)
 
-    def list_collections(self, variable_type):
+    def list_collections(self, data_function_type):
         try:
-            ret = [v for v in self._collections[variable_type]]
+            ret = [v for v in self._collections[data_function_type]]
         except KeyError as e:
-            msg = f'{variable_type!r}: Invalid variable_type. Please chose from {self.available_collection_types!r}'
+            msg = f'{data_function_type!r}: Invalid data_function_type. ' \
+                  f'Please chose from {self.available_collection_types!r}'
             logger.debug(e, exc_info=True)
             logger.info(msg, exc_info=True)
             raise ValueError(msg)
         return ret
 
-    def list_variables(self, collection: Union[fundamentals.COLLECTION_VARIABLE_TYPES], as_generator=False):
+    def list_variables(self, collection: Union[fundamentals.COLLECTION_DATA_FUNCTION_TYPES], as_generator=False):
         c = self.get_collection(collection)
 
         if len(c) == 0:
             logger.info(f'{c!r}: No variables assigned yet, parsing')
-            variables_obj = self._q.get_variable_obj(analysis_variables=collection)
+            variables_obj = self.q_request.get_variable_obj(analysis_variables=collection)
             c.add_variables(variables_obj)
         logger.info(f'{c!r}: {len(c)} variables available')
 
@@ -400,7 +442,7 @@ class FC:
 
         return self
 
-    def summarize_collection(self, collection: Union[fundamentals.COLLECTION_VARIABLE_TYPES]):
+    def summarize_collection(self, collection: Union[fundamentals.COLLECTION_DATA_FUNCTION_TYPES]):
 
         logger.info(f'Summarize {collection!r}')
         c_obj = self.get_collection(collection)
@@ -412,7 +454,7 @@ class FC:
         for i, variable_name in enumerate(self.list_variables(collection)):
             var_obj = c_obj.get_variable(variable_name)
             collection.variable = variable_name
-            line = [variable_name, collection.variable_type, var_obj.variable_size]
+            line = [variable_name, collection.data_function_type, var_obj.variable_size]
             data.append(line)
             if i % 1000000 == 0:
                 logger.debug(f'  variable {i} completed')
@@ -433,10 +475,8 @@ class FC:
         collection.variable = None
         logger.info(f'{collection!r}: variable summary shape: {df.shape}')
 
-        # Column "Variable" may duplicated due to the count_nans method
+        # Column "Variable" may be duplicated due to the count_nans method
         return df.loc[:, ~df.columns.duplicated()]
-
-        return df
 
     def to_dataframe(self,
                      analysis_variables: VariableBlockTypes,
@@ -467,7 +507,7 @@ class FC:
         if include_background:
             _analysis_variables.append(background)
 
-        content = self._q.get_content(analysis_variables=_analysis_variables, background=background)
+        content = self.q_request.get_content(analysis_variables=_analysis_variables, background=background)
 
         ret = content_to_dataframe(content=content,
                                    index=self.entity_collection.collection,
@@ -494,7 +534,7 @@ class FC:
 
     def where(self, *args):
         """
-        If starts with tuple, self.background needs to be empty.
+        If starts with tuple, background needs to be empty.
         :param self:
         :param args:
         :return:
