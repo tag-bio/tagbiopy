@@ -7,7 +7,8 @@ import sys
 from typing import List, Union
 
 from tagbiopy import logger
-from tagbiopy.utils import check_arg_type, check_list_arg_types, extract_data_reference_type, get_typename, list_attributes, log_exception
+from tagbiopy.utils import check_arg_type, check_list_arg_types, extract_data_reference_type
+from tagbiopy.utils import get_typename, list_attributes, log_exception
 
 
 __all__ = ['to_json', 'Categorical', 'Numeric', 'DataFrameCategorical', 'NumericMatrix', 'CategoricalBatch',
@@ -78,7 +79,7 @@ class VariableBlockImpl(VariableBlock):
     type_ = None
 
     def __init__(self):
-        self.variable_type = self._set_type()
+        self.data_function_type = self._set_type()
         self._as_dict = None
 
     def __repr__(self):
@@ -114,7 +115,7 @@ class VariableBlockImpl(VariableBlock):
 
     def _set_type(self):
         if self.type_ is None:
-            msg = f'{get_typename(self)}: variable_type not defined'
+            msg = f'{get_typename(self)}: data_function_type not defined'
             log_exception(NotImplementedError, msg)
 
         return self.type_
@@ -191,7 +192,7 @@ class CategoricalCompound(VariableBlockImpl, SetBlock):
             if v.criterion.variable is None:
                 v.criterion.variable = v.criterion.collection
         else:
-            msg = f'{v!r}, type {type(v)}: Invalid type. Please use {CATEGORICAL_COLLECTION_VARIABLE_TYPES}'
+            msg = f'{v!r}, type {type(v)}: Invalid type. Please use {CATEGORICAL_COLLECTION_DATA_FUNCTION_TYPES}'
             log_exception(exception_class=ValueError, message=msg)
         return v
 
@@ -336,41 +337,41 @@ class NumericCompound(VariableBlockImpl, NumericBlock):
                 msg = f'{v!r}: Variable cannot be None'
                 log_exception(exception_class=ValueError, message=msg)
         else:
-            msg = f'{v!r}, type {type(v)}: Invalid type. Please use {CATEGORICAL_COLLECTION_VARIABLE_TYPES}'
+            msg = f'{v!r}, type {type(v)}: Invalid type. Please use {CATEGORICAL_COLLECTION_DATA_FUNCTION_TYPES}'
             log_exception(exception_class=ValueError, message=msg)
         return v
 
 
-CATEGORICAL_COLLECTION_VARIABLE_TYPES = (Categorical, CategoricalBatch, CategoricalCompound, NumericSlice)
-DATAFRAME_COLLECTION_VARIABLE_TYPES = (DataFrameCategorical, NumericMatrix)
-NUMERIC_COLLECTION_VARIABLE_TYPES = (Numeric,)
+CATEGORICAL_COLLECTION_DATA_FUNCTION_TYPES = (Categorical, CategoricalBatch, CategoricalCompound, NumericSlice)
+DATAFRAME_COLLECTION_DATA_FUNCTION_TYPES = (DataFrameCategorical, NumericMatrix)
+NUMERIC_COLLECTION_DATA_FUNCTION_TYPES = (Numeric,)
 
-ALL_COLLECTION_VARIABLE_TYPES = (
+ALL_COLLECTION_DATA_FUNCTION_TYPES = (
     Categorical, Numeric, CategoricalBatch, CategoricalCompound, NumericSlice,
     DataFrameCategorical, NumericMatrix
 )
 
-COMMON_COLLECTION_VARIABLE_TYPES = (Categorical, Numeric, CategoricalBatch, CategoricalCompound, NumericSlice)
-COLLECTION_VARIABLE_TYPES = (Categorical, DataFrameCategorical, NumericMatrix, Numeric)
-STR_COLLECTION_VARIABLE_TYPES = tuple([v.type_ for v in COLLECTION_VARIABLE_TYPES])
+COMMON_COLLECTION_DATA_FUNCTION_TYPES = (Categorical, Numeric, CategoricalBatch, CategoricalCompound, NumericSlice)
+COLLECTION_DATA_FUNCTION_TYPES = (Categorical, DataFrameCategorical, NumericMatrix, Numeric)
+STR_COLLECTION_DATA_FUNCTION_TYPES = tuple([v.type_ for v in COLLECTION_DATA_FUNCTION_TYPES])
 
 
-def variable_block_factory(variable_type: str) -> Union[ALL_COLLECTION_VARIABLE_TYPES]:
+def variable_block_factory(data_function_type: str) -> Union[ALL_COLLECTION_DATA_FUNCTION_TYPES]:
     """
-    Turns str to variable_type object
+    Turns str to data_function_type object
         'categorical' to Categorical
         'data-frame-categorical' to DataFrameCategorical
         'data-frame-numeric' to NumericMatrix
         'numeric' to Numeric
 
-    :param variable_type: str, one of
+    :param data_function_type: str, one of
     :return:
     """
 
     try:
-        return getattr(sys.modules[__name__], variable_type.title().replace('-', ''))
+        return getattr(sys.modules[__name__], data_function_type.title().replace('-', ''))
     except AttributeError as e:
-        msg = f'Invalid variable type: {variable_type}'
+        msg = f'Invalid variable type: {data_function_type}'
         log_exception(exception_class=ValueError, message=msg, cause=e)
 
 
@@ -397,11 +398,11 @@ class _Collection(dict):
         self._kwargs = kwargs
         self.collection = kwargs.pop('collection')
 
-        variable_type = extract_data_reference_type(kwargs, use_pop=True)
-        self.variable_type = self._validate_type(variable_type)
+        data_function_type = extract_data_reference_type(kwargs, use_pop=True)
+        self.data_function_type = self._validate_type(data_function_type)
 
         self.collection_size = kwargs.pop('collection-size')
-        self._variable_block = variable_block_factory(self.variable_type)
+        self._variable_block = variable_block_factory(self.data_function_type)
 
     def __str__(self):
         ret = f'<{get_typename(self)} {self.collection!r} with {self.collection_size} declared and '
@@ -428,16 +429,16 @@ class _Collection(dict):
             msg = f'Collection {self.collection}: Invalid variable {variable}'
             log_exception(ValueError, msg)
 
-    def _validate_type(self, variable_type):
+    def _validate_type(self, data_function_type):
         if self.type_ is None:
-            msg = f'{self}: variable_type not defined'
+            msg = f'{self}: data_function_type not defined'
             log_exception(ValueError, msg)
 
-        if variable_type != self.type_:
-            msg = f'{self}: Invalid variable_type'
+        if data_function_type != self.type_:
+            msg = f'{self}: Invalid data_function_type'
             log_exception(ValueError, msg)
 
-        return variable_type
+        return data_function_type
 
     @property
     def variables(self):
@@ -513,7 +514,7 @@ class _Variable:
     type_ = None
 
     def __init__(self, **kwargs):
-        self.variable_type = extract_data_reference_type(kwargs, use_pop=True)
+        self.data_function_type = extract_data_reference_type(kwargs, use_pop=True)
         self.variable = kwargs.pop('variable')
         self.variable_size = kwargs.pop('variable-size')
 
@@ -532,28 +533,28 @@ class NumericVariable(_Variable):
     type_ = 'numeric'
 
 
-VARIABLE_TYPES = (CategoricalVariable, NumericVariable)
-STR_VARIABLE_TYPES = tuple([v.type_ for v in VARIABLE_TYPES])
+DATA_FUNCTION_TYPES = (CategoricalVariable, NumericVariable)
+STR_DATA_FUNCTION_TYPES = tuple([v.type_ for v in DATA_FUNCTION_TYPES])
 
 
 def collection_factory(**kwargs):
-    variable_type = extract_data_reference_type(kwargs)
+    data_function_type = extract_data_reference_type(kwargs)
 
-    class_name = variable_type.title().replace('-', '') + 'Collection'
+    class_name = data_function_type.title().replace('-', '') + 'Collection'
 
     try:
         return getattr(sys.modules[__name__], class_name)(**kwargs)
     except AttributeError as e:
-        msg = f'Invalid collection type: {variable_type}'
+        msg = f'Invalid collection type: {data_function_type}'
         log_exception(exception_class=ValueError, message=msg, cause=e)
 
 
 def variable_factory(**kwargs):
-    variable_type = extract_data_reference_type(kwargs)
-    class_name = variable_type.title().replace('-', '') + 'Variable'
+    data_function_type = extract_data_reference_type(kwargs)
+    class_name = data_function_type.title().replace('-', '') + 'Variable'
 
     try:
         return getattr(sys.modules[__name__], class_name)(**kwargs)
     except AttributeError as e:
-        msg = f'Invalid variable_type: {variable_type}'
+        msg = f'Invalid data_function_type: {data_function_type}'
         log_exception(exception_class=ValueError, message=msg, cause=e)
