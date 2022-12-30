@@ -6,6 +6,9 @@ from tagbiopy.logging import initialize_logger
 
 logger = initialize_logger()
 
+DEFAULT_HOST = 'http://localhost:8000'
+DOMAIN = 'tag.bio'
+
 try:
     # Change here if project is renamed and does not equal the package name
     dist_name = __name__
