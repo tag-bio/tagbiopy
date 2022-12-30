@@ -59,12 +59,11 @@ def check_list_arg_types(lst: list, arg_type: type, allow_none=True):
     return lst
 
 
-def content_to_dataframe(content, index, **kwargs) -> pd.DataFrame:
+def content_to_dataframe(content, index=None, **kwargs) -> pd.DataFrame:
     """Takes POST content and turns it into an indexed dataframe.
 
     :param content: requests.post.content
     :param index: str,
-    :param clean_up: bool, replace ' = ' with ': ' in collection-variable names
     :param kwargs: dict, pd.DataFrame.read_csv parameters
     :return: pd.DataFrame
     """
@@ -76,6 +75,9 @@ def content_to_dataframe(content, index, **kwargs) -> pd.DataFrame:
     _df = pd.read_csv(io.StringIO(encoded_content), **kwargs)
     logger.debug(f'Content turned into a {_df.shape} dataframe')
 
+    # Use default index if index not specified
+    if index is None:
+        index = 'Unique ID'
     try:
         return _df.set_index(index)
     except KeyError as e:
@@ -99,6 +101,22 @@ def create_temp_file(prefix=None, suffix='.log', fh=False):
         return os.fdopen(fd)
     else:
         return log_file
+
+
+def instance_details(klass_):
+    attributes = list_attributes(klass_, include_private=True)
+    properties = list_properties(klass_, include_private=True)
+    methods = list_methods(klass_, include_private=True)
+
+    ret = f'{klass_!r}:'
+    ret += '\n  Attributes:\n'
+    ret += '\n'.join([f'  {v}' for v in attributes])
+    ret += '\n  Properties:\n'
+    ret += '\n'.join([f'  {v}' for v in properties])
+    ret += '\n  Methods:\n'
+    ret += '\n'.join([f'  {v}' for v in methods])
+
+    return ret
 
 
 def dict2obj(d):
@@ -153,7 +171,6 @@ def generate_repr(instance):
 
 
 def get_bash_command_stdout(command, workdir):
-
     import subprocess
     return subprocess.run(
         command.split(),
@@ -180,6 +197,17 @@ def get_current_branch(repo_dir=THIS_DIR):
 def get_current_sha(repo_dir=THIS_DIR):
     command = f'git rev-parse HEAD'
     return get_bash_command_stdout(command, repo_dir)
+
+
+def get_post_headers(r):
+    return f'post headers: {json.dumps(dict(r.headers), indent=2)}'
+
+
+def get_post_request_status(r):
+    if r.status_code > 200:
+        return f'HTTP {r.request.method} response status code {r.status_code}, message: {r.json()["message"]}'
+    else:
+        return 'OK'
 
 
 def get_typename(v):
@@ -315,6 +343,26 @@ def returns(rtype):
         return new_f
 
     return check_returns
+
+
+def run_notebook(notebook_file, output_file):
+    """
+
+    We do not show the input cells when turning a jupyter notebook into a html report.
+
+    jupyter nbconvert --execute --no-input --to html --template classic --output test.html ml-pymd.ipynb
+    :param notebook_file: str, path to ipynb
+    :param output_file: str, path to the output
+    :return: None
+    """
+    import subprocess
+
+    # Run the notebook
+    subprocess.run(
+        ['jupyter', 'nbconvert', '--execute', '--to', 'html',
+         '--no-input', '--output',
+         output_file, notebook_file]
+    )
 
 
 def to_json(variable_object):
