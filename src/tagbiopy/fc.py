@@ -5,11 +5,10 @@ from typing import List, Union, Optional
 
 import pandas as pd
 
-from tagbiopy import logger
+from tagbiopy import logger, DEFAULT_HOST
 from tagbiopy import fundamentals
 from tagbiopy.request import QRequest, SRequest
-from tagbiopy.utils import (check_arg_type, content_to_dataframe, extract_data_reference_type,
-                            list_attributes, list_methods, list_properties, log_exception)
+from tagbiopy.utils import check_arg_type, content_to_dataframe, extract_data_reference_type, log_exception
 from .where_clause import check_boolean, set_collection, update
 
 VariableBlockTypes = Union[fundamentals.VariableBlock, List[fundamentals.VariableBlock]]
@@ -21,7 +20,6 @@ TAGBIO_CONFIG_FILE = '.tagbio.json'
 TAGBIO_HOST = 'TAGBIO_HOST'
 TAGBIO_API_KEY = 'TAGBIO_API_KEY'
 TAGBIO_BASE_URL = 'TAGBIO_BASE_URL'
-LOCALHOST = 'localhost'
 
 
 def setup_local_env():
@@ -37,7 +35,7 @@ def setup_local_env():
         HOST=os.environ.get('TAGBIO_HOST', env.get('TAGBIO_HOST')),
         API_KEY=os.environ.get('TAGBIO_API_KEY', env.get('TAGBIO_API_KEY')),
         BASE_URL=os.environ.get('TAGBIO_BASE_URL', env.get('TAGBIO_BASE_URL')),
-        LOCALHOST=os.environ.get('LOCALHOST', env.get('LOCALHOST', LOCALHOST))
+        DEFAULT_HOST=os.environ.get('DEFAULT_HOST', env.get('DEFAULT_HOST', DEFAULT_HOST))
     )
 
 
@@ -97,12 +95,12 @@ class FC:
         logger.info(f'{self!r}: Initialized')
 
     def __repr__(self):
-        str_repr = f'{self.__class__.__name__}('
+        args = []
         if self.host is not None:
-            str_repr += f'host={self.host}, '
+            args.append(f'host={self.host!r}')
         if self.api_key is not None:
-            str_repr += f'api_key={self.api_key!r}, '
-        return str_repr
+            args.append(f'api_key={self.api_key!r}')
+        return f'{self.__class__.__name__}({", ".join(args)})'
 
     def _prepare(self, variables: VariableBlockTypes) -> list:
         """Prepare analysis variables by including the entity collection and sorting out
@@ -238,7 +236,7 @@ class FC:
                 if self.base_url is not None and self.name is not None:
                     self._host = f'{self.base_url}/fc-svc/{self.name}'
                 else:
-                    self._host = self.env.get('LOCALHOST')
+                    self._host = self.env.get('DEFAULT_HOST')
         return self._host
 
     @property
@@ -349,18 +347,6 @@ class FC:
 
             ret = pd.DataFrame(data=data, columns=['Variable', 'Entities without data'])
             ret.columns.name = f'Collection: {collection.collection!r}'
-
-        return ret
-
-    def _details(self):
-        attributes = '\n'.join([f'    {v}' for v in list_attributes(self, include_private=True)])
-        properties = '\n'.join([f'    {v}' for v in list_properties(self.__class__, include_private=True)])
-        methods = '\n'.join([f'    {v}' for v in list_methods(self.__class__, include_private=True)])
-
-        ret = f'{self!r}:\n'
-        ret += f'  Attributes:\n{attributes}\n'
-        ret += f'  Properties:\n{properties}\n'
-        ret += f'  Methods:\n{methods}\n'
 
         return ret
 
@@ -509,9 +495,7 @@ class FC:
 
         content = self.q_request.get_content(analysis_variables=_analysis_variables, background=background)
 
-        ret = content_to_dataframe(content=content,
-                                   index=self.entity_collection.collection,
-                                   **kwargs)
+        ret = content_to_dataframe(content=content, **kwargs)
         logger.info(f'{self!r}: dataframe shape {ret.shape}')
         return ret
 
