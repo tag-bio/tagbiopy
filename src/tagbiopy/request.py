@@ -3,17 +3,15 @@ import requests
 
 from abc import ABC, abstractmethod
 
-from tagbiopy import logger
-from tagbiopy.utils import list_attributes, list_methods, list_properties, log_exception, to_json
+from tagbiopy import logger, DEFAULT_HOST
+from tagbiopy.utils import get_post_headers, get_post_request_status, log_exception, to_json
 
 SCHEME = 'https'
 TIMEOUT = None
-DEFAULT_HOST = 'http://localhost:8000'
-DOMAIN = 'tag.bio'
 API_METHODS = ('/a', '/p', '/q', '/s', '/t')
 
 # In /q requests
-HEADER_DELIMITER=': '
+HEADER_DELIMITER = ': '
 
 
 class _Request(ABC):
@@ -44,60 +42,43 @@ class _Request(ABC):
     """
     method_ = None
 
-    def __init__(self, host:str, api_key:str = None) -> None:
+    def __init__(self, host: str, api_key: str = None) -> None:
         """
-        
+
         :param host: str.
         """
         logger.info(f'{self.__class__}: Initialize')
-        self.host = host
-        self._api_key = api_key
+        self._host = host
+        self.api_key = api_key
 
-        self.api_method = self._validate_api_method()
-
-        self.url = self._set_url(self.host, self.api_method)
+        self._api_method = None
+        self._url = None
         self._payload = None
 
-        logger.debug(f'{self}')
+        self._user = None
+        self._pwd = None
+
         logger.info(f'{self!r}: Initialized')
 
     def __repr__(self):
-        return f'{self.__class__.__name__}(host={self.host!r})'
+        str_repr = f'{self.__class__.__name__}('
+        str_repr += ', '.join([f'{v!r}' for v in [self.host, self.api_key] if v])
+        str_repr += ')'
+        return str_repr
 
-    def __str__(self):
-        ret = f'{self!r}:\n'
-        ret += '  Attributes:\n'
-        ret += '\n'.join([f'    {v}' for v in list_attributes(self, include_private=True)])
-        ret += '\n'
-        ret += '  Properties:\n'
-        ret += '\n'.join([f'    {v}' for v in list_properties(self.__class__, include_private=True)])
-        ret += '\n'
-        ret += '  Methods:\n'
-        ret += '\n'.join([f'    {v}' for v in list_methods(self.__class__, include_private=True)])
-        return ret
-
-    @staticmethod
-    def _set_url(host, api_method):
-        if host == 'localhost':
-            base_url = DEFAULT_HOST
-        else:
-            # Not sure how Damir's url method generalizes... 
-            #base_url = f'{SCHEME}://{host}.{DOMAIN}'
-            base_url = host # temp solution (host is a url...)
-
-        url = f'{base_url}{api_method}'
-
-        return url
-
-    def _validate_api_method(self):
-        if self.method_ is None:
-            msg = f'{self}: API method not defined'
-            log_exception(RuntimeError, msg)
-        elif self.method_ not in API_METHODS:
-            msg = f'{self.method_}: invalid request type. Choose from {API_METHODS}'
-            log_exception(ValueError, msg)
-        else:
-            return self.method_
+    @property
+    def api_method(self):
+        if self._api_method is None:
+            msg = f'{self!r}: '
+            if self.method_ is None:
+                msg += f'API method not defined. Choose from {API_METHODS}'
+                log_exception(RuntimeError, msg)
+            elif self.method_ not in API_METHODS:
+                msg += f'API method {self.method_!r} illegal. Choose from {API_METHODS}'
+                log_exception(ValueError, msg)
+            else:
+                self._api_method = self.method_
+        return self._api_method
 
     @property
     def as_dict(self):
@@ -106,6 +87,12 @@ class _Request(ABC):
     @property
     def data(self):
         return json.dumps(self.payload, indent=2, default=to_json)
+
+    @property
+    def host(self):
+        if self._host is None:
+            self._host = DEFAULT_HOST
+        return self._host
 
     @property
     def payload(self):
@@ -127,38 +114,48 @@ class _Request(ABC):
         logger.info(f'{self!r}: issue POST request')
         logger.debug(f'{self!r}: requests.post(url={self.url!r}, data={self.data}, timeout={TIMEOUT})')
 
-        user = ""
-        pwd = ""
-
-        if self._api_key is not None and self._api_key != "":
-            api_data = self._api_key.split(":")
-            if len(api_data) != 2:
-                print(api_data)
-                msg = f'{repr(self)}: invalid api key'
-                log_exception(ValueError, msg)
+        try:
+            r = requests.post(self.url,
+                              data=self.data,
+                              timeout=TIMEOUT)
+            logger.debug(f'{self!r}: {get_post_headers(r)}')
+            msg = get_post_request_status(r)
+            if msg == 'OK':
+                return r
             else:
-                user = api_data[0]
-                pwd = api_data[1]
-
-        r = requests.post(self.url, data=self.data, 
-                auth=(user, pwd),
-                timeout=TIMEOUT)
-        logger.debug(f'{self!r}: post headers = {json.dumps(dict(r.headers), indent=2)}')
-        if r.status_code > 200:
-            msg = f'HTTP {r.request.method} response status code {r.status_code}, message: {r.json()["message"]}'
-            log_exception(exception_class=requests.HTTPError, message=msg)
-
-        return r
+                log_exception(exception_class=requests.HTTPError, message=msg)
+        except ConnectionRefusedError as e:
+            log_exception(ConnectionRefusedError, str(e))
 
     @abstractmethod
     def prepare_payload(self, *args, **kwargs):
         return None
 
+    @property
+    def pwd(self):
+        if self._pwd is None:
+            if self.api_key and ':' in self.api_key:
+                self._pwd = self.api_key.split(':')[1]
+        return self._pwd
+
+    @property
+    def url(self):
+        if self._url is None:
+            self._url = f'{self.host}{self.api_method}'
+        return self._url
+
+    @property
+    def user(self):
+        if self._user is None:
+            if self.api_key and ':' in self.api_key:
+                self._user = self.api_key.split(':')[0]
+        return self._user
+
 
 class SRequest(_Request):
     method_ = '/s'
 
-    def __init__(self, host:str, api_key:str = None) -> None:
+    def __init__(self, host: str, api_key: str = None) -> None:
         super().__init__(host, api_key)
 
         self.payload = self.prepare_payload()
@@ -186,7 +183,7 @@ class PRequest(_Request):
     method_ = '/p'
     request_types = ('get_tags', 'get_protocols')
 
-    def __init__(self, host:str, api_key:str = None) -> None:
+    def __init__(self, host: str, api_key: str = None) -> None:
         super().__init__(host, api_key)
         self._protocols = None
 
@@ -252,7 +249,7 @@ class QRequest(_Request):
     method_ = '/q'
     allowed_methods = ('collection', 'download', 'summary', 'variable')
 
-    def __init__(self, host:str, api_key:str = None) -> None:
+    def __init__(self, host: str, api_key: str = None) -> None:
         super().__init__(host, api_key)
 
         # Initialize collection property. No need for summary (not used)
