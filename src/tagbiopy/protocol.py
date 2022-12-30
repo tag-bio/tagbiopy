@@ -1,12 +1,8 @@
-import json
-import os
-
 import pandas as pd
-import requests
 
 from tagbiopy import logger
-from tagbiopy.fc import FC
-from tagbiopy.utils import content_to_dataframe, load_json, log_exception
+from tagbiopy.request import QRequest
+from tagbiopy.utils import content_to_dataframe, list_attributes, load_json, log_exception
 
 
 def flatten_single_element_list(_dict):
@@ -41,102 +37,69 @@ def load_function(filename):
     log_exception(RuntimeError, message)
 
 
-def _set_payload(target, api_key=None, **kwargs):
-    if target == 'protocol_instance':
-        ret = {
-            'zip': True,
-            'groups': ['developer']
-        }
-    elif target == 'script':
-        if api_key is None:
-            api_key = ''
-        ret = {
-            'api_key': api_key
-        }
-    else:
-        msg = f'Invalid target: {target}. Should be either "protocol_instance" or "script"'
-        log_exception(ValueError, msg)
-        return
-
-    ret.update(kwargs)
-
-    return json.dumps(ret, indent=2)
-
-
 class FCPacket:
 
     def __init__(self, filename):
-        self.__filename = filename
+        self.filename = filename
         # Serialize the entire packet received from the FC
-        self._packet = load_json(self.__filename)
+        self._packet = load_json(self.filename)
 
         # Get the 'fc' part
         self._fc = self._packet.get('fc')
+        self._script = self._packet.get('script')
 
         self.name = self._fc.get('name')
-        self._url = None
-        self.api_key = self._packet.get('api_key', "")
+        self.url = self._fc.get('url')
+        self._hostname = None
+        self.api_key = self._packet.get('api_key')
 
-        # Establish what kind of protocol is requested
-        self.protocol_instance = self._packet.get('protocol_instance')
-        self.script = self._packet.get('script')
-        self._test_protocol()
+        self._payload = None
+
+        self.method = self._script.get('method')
+        self._q_request = None
+        self._analysis_variables = None
+        self._background = None
 
         # Take care of passthrough arguments
         self.passthrough_arguments = PassThroughArguments(self._packet.get('passthrough_arguments'))
-
-        # Payload
-        self._payload = None
 
         logger.debug(f'{self!r} initialized')
 
     def __repr__(self):
         ret = self.__class__.__name__
-        ret += f'(filename={self.__filename!r})'
+        ret += f'(filename={self.filename!r})'
         return ret
 
-    def __str__(self):
-        name = [
-            f'name={self.name!r}',
-            f'url={self.url!r}',
-            f'packet:\n{json.dumps(self._packet, indent=2)}']
-        return f'{self.__class__!r}: {", ".join(name)}'
-
-    def _test_protocol(self):
-        if self.protocol_instance is None and self.script is None:
-            msg = 'You need to pass either a "protocol_instance" or a "download_script"'
-            log_exception(ValueError, msg)
+    @property
+    def analysis_variables(self):
+        if self._analysis_variables is None:
+            # Jesse, please don't change anything in what the back end returns
+            _analysis_variables = self._script.get('analysis_variables')
+            _analysis_variables_json = self.q_request.get_variable_obj(analysis_variables=_analysis_variables)
+            self._analysis_variables = [v['values'] for v in _analysis_variables_json['results']]
+        return self._analysis_variables
 
     @property
-    def payload(self):
-        if self._payload is None:
-            if self.protocol_instance:
-                _protocol_instance = {'protocol_instance': self.protocol_instance}
-                self._payload = _set_payload(target='protocol_instance', **_protocol_instance)
-            elif self.script:
-                _script = self.script
-                _script.update({'passthrough_arguments': self._packet.get('passthrough_arguments')})
-                self._payload = _set_payload(target='script', **_script)
-        return self._payload
+    def background(self):
+        if self._background is None:
+            self._background = getattr(self.passthrough_arguments, 'background_cohort')
+        return self._background
 
     @property
-    def url(self):
-        if self._url is None:
-            self._url = os.path.join(self._fc.get('url'), 'q')
-        if self._url is None:
-            raise ValueError('No url in the packet: {}'.format(str(self._packet)))
-        return self._url
+    def hostname(self):
+        if self._hostname is None:
+            if self.url.endswith('/'):
+                self._hostname = self.url[:-1]
+        return self._hostname
 
     @property
-    def post(self):
-        logger.info(f'{self!r}: issue POST request')
-        logger.debug(f'{self!r}: requests.post(url={self.url!r}, data={self.payload})')
-        r = requests.post(self.url, data=self.payload)
-        logger.debug(f'{self!r}: post headers = {json.dumps(dict(r.headers), indent=2)}')
-        if r.status_code > 200:
-            msg = f'HTTP {r.request.method} response status code {r.status_code}, message: {r.json()["message"]}'
-            log_exception(exception_class=requests.HTTPError, message=msg)
-        return r
+    def q_request(self):
+        if self._q_request is None:
+            self._q_request = QRequest(
+                host=self.hostname,
+                api_key=self.api_key
+            )
+        return self._q_request
 
 
 class PassThroughArguments:
@@ -159,17 +122,10 @@ class PassThroughArguments:
 
         return ret
 
-    def __str__(self):
-        ret = '<class {}:'.format(self.__class__.__name__)
-        ret += ', attributes: '
-        ret += ', '.join(['{} ({})'.format(k, str(type(getattr(self, k)))) for k in self.attributes])
-        ret += '>'
-        return ret
-
     @property
     def attributes(self):
         if self._attributes is None:
-            self._attributes = sorted([k for k in self.__dict__.keys() if not k.startswith('_')])
+            self._attributes = list_attributes(self)
         return self._attributes
 
     def get(self, name):
@@ -183,40 +139,30 @@ class PassThroughArguments:
 class TagbioData:
 
     def __init__(self, fc_packet):
-        self.__fc_packet = fc_packet
-        self.fc_packet = FCPacket(self.__fc_packet)
+        self.fc_packet = FCPacket(fc_packet)
         self.passthrough_arguments = self.fc_packet.passthrough_arguments
 
+        self._q_request = None
         self._df = None
-        self._entity_collection = None
 
         logger.debug(f'{self!r} initialized')
 
     def __repr__(self):
         ret = self.__class__.__name__
-        ret += f'(fc_packet={self.__fc_packet!r}, '
-        ret += f'entity_collection={self.entity_collection!r})'
-        return ret
-
-    def __str__(self):
-        ret = '<class {}:'.format(self.__class__.__name__)
-        ret += ' df: {}'.format(str(self.df.shape))
-        ret += '>'
+        ret += f'(fc_packet={self.fc_packet.filename!r}, '
         return ret
 
     @property
     def df(self) -> pd.DataFrame:
         if self._df is None:
-            self._df = content_to_dataframe(self.fc_packet.post.content, self.entity_collection)
-            logger.debug(f'df shape: {self._df.columns}')
-            logger.debug(f'Default columns: {self._df.columns}')
-        return self._df
+            content = self.fc_packet.q_request.get_content(
+                analysis_variables=self.fc_packet.analysis_variables,
+                background=self.fc_packet.background
+            )
+            self._df = content_to_dataframe(content)
 
-    @property
-    def entity_collection(self) -> str:
-        if self._entity_collection is None:
-            self._entity_collection = FC().entity_collection.collection
-        return self._entity_collection
+            logger.debug(f'{self}: shape {self._df.shape}, columns: {self._df.columns}')
+        return self._df
 
 
 class TagbioResult:
@@ -228,12 +174,8 @@ class TagbioResult:
         :param path: path, private, where the df will be stored
         """
 
-        if extension not in self._extensions:
-            message = f'Extension "{extension}" not valid.'
-            message += ' Please choose from {}'.format(', '.join(self._extensions))
-            log_exception(ValueError, message)
+        self._extension = extension
 
-        self.extension = extension
         # Keep the path private
         self.__path = path
         self._path_mutable = path_mutable
@@ -244,21 +186,24 @@ class TagbioResult:
         self._fig = None
 
     def __repr__(self):
-        ret = self.__class__.__name__
-        ret += f'(extension={self.extension}, '
-        ret += f'path={self.path}, '
-        ret += f'path_mutable={self._path_mutable})'
-        return ret
+        args = []
+        if self.extension:
+            args.append(f'extension={self.extension!r}')
+        if self.path:
+            args.append(f'path={self.path!r}')
+        if self._path_mutable:
+            args.append(f'path_mutable={self._path_mutable}')
+        return f'{self.__class__.__name__}({", ".join(args)})'
 
     def __str__(self):
-        ret = '<class {}:'.format(self.__class__.__name__)
-        ret += f' extension: {self.extension}'
+        ret = f'<class {self.__class__.__name__}: '
+        ret += f'extension: {self.extension}'
         if self.fig is not None:
-            ret += ', fig: {}'.format(type(self.fig))
+            ret += f', fig: {type(self.fig)}'
         if self.__path is not None:
-            ret += ', path (private): {}'.format(self.__path)
+            ret += f', path (private): {self.__path}'
         if self.df is not None:
-            ret += ', dataframe shape: {}'.format(str(self.df.shape))
+            ret += ', dataframe shape: {self.df.shape}'
         ret += '>'
         return ret
 
@@ -273,6 +218,13 @@ class TagbioResult:
     @df.setter
     def df(self, data_frame):
         self._df = data_frame
+
+    @property
+    def extension(self):
+        if self._extension not in self._extensions:
+            msg = f'{self!r}: Extension {self._extension!r} not valid. Chose from {self._extensions}'
+            log_exception(ValueError, msg)
+        return self._extension
 
     @property
     def fig(self):
