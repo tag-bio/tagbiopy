@@ -364,6 +364,17 @@ def run_notebook(notebook_file, output_file):
          output_file, notebook_file]
     )
 
+    # Note: regardless of the output_file name, nbconvert will always
+    # attach ".html" to the output file.
+
+    expected_file = output_file.replace('.html', '')
+    os.rename(
+        output_file,
+        expected_file
+    )
+
+    return expected_file
+
 
 def to_json(variable_object):
     return variable_object.as_dict
