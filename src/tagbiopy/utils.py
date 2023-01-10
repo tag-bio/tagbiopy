@@ -359,7 +359,7 @@ def run_notebook(notebook_file, output_file):
 
     # Run the notebook
     subprocess.run(
-        ['jupyter', 'nbconvert', '--execute', '--to', 'html',
+        ['jupyter', 'nbconvert', '--to', 'html',
          '--no-input', '--output',
          output_file, notebook_file]
     )
