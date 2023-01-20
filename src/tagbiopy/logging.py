@@ -20,7 +20,15 @@ def _create_log_file():
     return log_file
 
 
-def initialize_logger(name=LOGGER_NAME, level=logging.DEBUG, fmt=LOG_FORMAT):
+def initialize_logger(name=LOGGER_NAME, level=logging.DEBUG, fmt=LOG_FORMAT, info=False):
+    """
+    Use to set logging to a temp file.
+    :param name: str, default global
+    :param level: str, default debug
+    :param fmt: str, default global
+    :param info: Bool, default false. If set to true, print the path to
+    :return: logger handle
+    """
 
     logger = logging.getLogger(name)
     logger.setLevel(level)
@@ -33,7 +41,8 @@ def initialize_logger(name=LOGGER_NAME, level=logging.DEBUG, fmt=LOG_FORMAT):
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-    print(f'Logger: {name!r}, log file: {log_file}', flush=True)
+    if info:
+        print(f'Logger: {name!r}, log file: {log_file}', flush=True)
 
     # Send warnings to the logger, as well
     logging.captureWarnings(True)
