@@ -230,6 +230,35 @@ def inspect_function_arguments(func):
     return arguments, defaults
 
 
+def ipynb_to_html(notebook_file, output_file):
+    """
+    Use to turn a jupyter notebook into an html file embeddable into the front end.
+    Run the following command in shell using subprocess:
+    'jupyter nbconvert --no-input --to html --output <output_file> <notebook_file>'
+
+    The '--no-input' command-line switch is used to not show the input code from the notebook.
+    The return code of the shell command is checked, and if there are any issues CalledProcessError
+    exception is raised.
+
+    :param notebook_file: str, path to ipynb
+    :param output_file: str, path to the output
+    :return: None
+    """
+    import subprocess
+    import shutil
+
+    # Run the notebook
+    command = 'jupyter nbconvert --to html --no-input --output '
+    command += f'{output_file} {notebook_file}'
+    command_split = command.split()
+    subprocess.run(command_split).check_returncode()
+
+    # Note: regardless of the output_file name, nbconvert will always
+    # attach ".html" to the output file.
+
+    shutil.copy(f'{output_file}.html', output_file)
+
+
 def list_attributes(instance, include_private=False):
     public_attributes = []
     private_attributes = []
@@ -343,37 +372,6 @@ def returns(rtype):
         return new_f
 
     return check_returns
-
-
-def run_notebook(notebook_file, output_file):
-    """
-
-    We do not show the input cells when turning a jupyter notebook into a html report.
-
-    jupyter nbconvert --execute --no-input --to html --template classic --output test.html ml-pymd.ipynb
-    :param notebook_file: str, path to ipynb
-    :param output_file: str, path to the output
-    :return: None
-    """
-    import subprocess
-
-    # Run the notebook
-    subprocess.run(
-        ['jupyter', 'nbconvert', '--to', 'html',
-         '--no-input', '--output',
-         output_file, notebook_file]
-    )
-
-    # Note: regardless of the output_file name, nbconvert will always
-    # attach ".html" to the output file.
-
-    expected_file = output_file.replace('.html', '')
-    os.rename(
-        output_file,
-        expected_file
-    )
-
-    return expected_file
 
 
 def to_json(variable_object):
