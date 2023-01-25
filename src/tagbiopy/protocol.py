@@ -58,7 +58,7 @@ class FCPacket:
         self.method = self._script.get('method')
         self._q_request = None
         self._analysis_variables = None
-        self._background = None
+        self.background = self._script.get('background_cohort')
 
         # Take care of passthrough arguments
         self.passthrough_arguments = PassThroughArguments(self._packet.get('passthrough_arguments'))
@@ -78,12 +78,6 @@ class FCPacket:
             _analysis_variables_json = self.q_request.get_variable_obj(analysis_variables=_analysis_variables)
             self._analysis_variables = [v['values'] for v in _analysis_variables_json['results']]
         return self._analysis_variables
-
-    @property
-    def background(self):
-        if self._background is None:
-            self._background = getattr(self.passthrough_arguments, 'background_cohort')
-        return self._background
 
     @property
     def hostname(self):
