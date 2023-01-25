@@ -82,7 +82,10 @@ class FCPacket:
     @property
     def background(self):
         if self._background is None:
-            self._background = getattr(self.passthrough_arguments, 'background_cohort')
+            try:
+                self._background = getattr(self.passthrough_arguments, 'background_cohort')
+            except AttributeError:
+                self._background = None
         return self._background
 
     @property
