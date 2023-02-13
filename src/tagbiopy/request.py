@@ -1,10 +1,10 @@
+from abc import ABC, abstractmethod
 import json
+
 import requests
 
-from abc import ABC, abstractmethod
-
 from tagbiopy import logger, DEFAULT_HOST
-from tagbiopy.utils import get_post_headers, get_post_request_status, log_exception, to_json
+from tagbiopy.utils import get_post_headers, log_exception, to_json
 
 SCHEME = 'https'
 TIMEOUT = None
@@ -52,6 +52,7 @@ class _Request(ABC):
         self.api_key = api_key
 
         self._api_method = None
+        self._auth = None
         self._url = None
         self._payload = None
 
@@ -114,15 +115,25 @@ class _Request(ABC):
         logger.info(f'{self!r}: issue POST request')
         logger.debug(f'{self!r}: requests.post(url={self.url!r}, data={self.data}, timeout={TIMEOUT})')
 
+        post_kwargs = {
+            'data': self.data,
+            'timeout': TIMEOUT
+        }
+
+        # If api_key is passed, it looks like: "email:uuid". Therefore, split on ':' and
+        # pass the elements of the list as the username and password in HTTPBasicAuth
+        if self.api_key:
+            from requests.auth import HTTPBasicAuth
+            auth = HTTPBasicAuth(*self.api_key.split(':'))
+            post_kwargs.update({'auth': auth})
+
         try:
-            r = requests.post(self.url,
-                              data=self.data,
-                              timeout=TIMEOUT)
+            r = requests.post(self.url, **post_kwargs)
             logger.debug(f'{self!r}: {get_post_headers(r)}')
-            msg = get_post_request_status(r)
-            if msg == 'OK':
+            if r.ok:
                 return r
             else:
+                msg = f'HTTP {r.request.method} response status code {r.status_code}, content: {r.content}'
                 log_exception(exception_class=requests.HTTPError, message=msg)
         except ConnectionRefusedError as e:
             log_exception(ConnectionRefusedError, str(e))
