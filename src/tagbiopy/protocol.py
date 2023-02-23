@@ -58,7 +58,7 @@ class FCPacket:
         self.method = self._script.get('method')
         self._q_request = None
         self._analysis_variables = None
-        self.background = self._script.get('background_cohort')
+        self.background = self._script.get('background')
 
         # Take care of passthrough arguments
         self.passthrough_arguments = PassThroughArguments(self._packet.get('passthrough_arguments'))
