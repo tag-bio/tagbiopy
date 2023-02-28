@@ -203,13 +203,6 @@ def get_post_headers(r):
     return f'post headers: {json.dumps(dict(r.headers), indent=2)}'
 
 
-def get_post_request_status(r):
-    if r.status_code > 200:
-        return f'HTTP {r.request.method} response status code {r.status_code}, message: {r.json()["message"]}'
-    else:
-        return 'OK'
-
-
 def get_typename(v):
     return type(v).__name__
 
