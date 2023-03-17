@@ -321,6 +321,6 @@ class QRequest(_Request):
         if background is not None:
             ret['script'].update({'background': background})
 
-        logger.debug(f'{self!r}: payload: {json.dumps(ret, indent=2, default=to_json)}')
+        logger.debug(f'{self!r}: payload: {json.dumps(ret, indent=2, default=_to_json)}')
 
         return ret
