@@ -28,7 +28,7 @@ def setup_local_env():
         with open(path) as fh:
             env = json.load(fh)
     except FileNotFoundError as e:
-        logger.debug(e)
+        logger.debug(f'Local env not loaded: {e}')
         env = {}
 
     return dict(
