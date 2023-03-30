@@ -1,3 +1,4 @@
+import json
 import pandas as pd
 
 from tagbiopy import logger
@@ -57,27 +58,20 @@ class FCPacket:
 
         self.method = self._script.get('method')
         self._q_request = None
-        self._analysis_variables = None
         self.background = self._script.get('background')
+        self.analysis_variables = self._script.get('analysis_variables')
 
         # Take care of passthrough arguments
         self.passthrough_arguments = PassThroughArguments(self._packet.get('passthrough_arguments'))
 
-        logger.debug(f'{self!r} initialized')
+        logger.info(f'{self!r} initialized')
+        logger.debug(f'{self!r}: background: {json.dumps(self.background, indent=4)}')
+        logger.debug(f'{self!r}: analysis variables: {json.dumps(self.analysis_variables, indent=4)}')
 
     def __repr__(self):
         ret = self.__class__.__name__
         ret += f'(filename={self.filename!r})'
         return ret
-
-    @property
-    def analysis_variables(self):
-        if self._analysis_variables is None:
-            # Jesse, please don't change anything in what the back end returns
-            _analysis_variables = self._script.get('analysis_variables')
-            _analysis_variables_json = self.q_request.get_variable_obj(analysis_variables=_analysis_variables)
-            self._analysis_variables = [v['values'] for v in _analysis_variables_json['results']]
-        return self._analysis_variables
 
     @property
     def hostname(self):
