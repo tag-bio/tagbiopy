@@ -15,7 +15,7 @@ echo "*** Building tagbio python library in dev mode"
 #pip install -r ./requirements.txt
 #pip install $SCRIPT_DIR/dist/*
 
-#pip install -U pip
+pip install -U pip
 pip install -e $SCRIPT_DIR
 
 
