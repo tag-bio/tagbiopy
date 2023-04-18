@@ -8,6 +8,7 @@ logger = initialize_logger()
 
 DEFAULT_HOST = 'http://localhost:8000'
 DOMAIN = 'tag.bio'
+KUNG = 'fc-svc'
 
 try:
     # Change here if project is renamed and does not equal the package name
