@@ -56,7 +56,10 @@ def run():
 
     logger.debug(f'Check fc_packet: {tag_data.fc_packet = }')
     logger.info(f'Check TagbioData.df')
-    logger.info(f'{tag_data.df.columns = }')
+    if tag_data.df is None:
+        logger.info('No data requested')
+    else:
+        logger.info(f'{tag_data.df.columns = }')
 
     # Initialize tag_result. If output path is a temp file
     logger.info('Initialize TagbioResult')
