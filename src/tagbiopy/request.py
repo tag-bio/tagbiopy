@@ -4,7 +4,7 @@ import json
 
 import requests
 
-from tagbiopy import logger, DEFAULT_HOST
+from tagbiopy import logger, DEFAULT_HOST, KUNG
 from tagbiopy.utils import get_post_headers, log_exception, to_json
 
 SCHEME = 'https'
@@ -44,14 +44,17 @@ class _Request(ABC):
     """
     method_ = None
 
-    def __init__(self, host: str, api_key: str = None) -> None:
+    def __init__(self, host: str, api_key: str = None, fc_name: str = None) -> None:
         """
 
-        :param host: str.
+        :param host:
+        :param api_key:
+        :param fc_name: fc name, string, as in fc-XXXX. Default none, use for running on localhost
         """
         logger.info(f'{self.__class__}: Initialize')
         self._host = host
         self.api_key = api_key
+        self.fc_name = fc_name
 
         self._api_method = None
         self._auth = None
@@ -164,7 +167,10 @@ class _Request(ABC):
     @property
     def url(self):
         if self._url is None:
-            self._url = f'{self.host}{self.api_method}'
+            if self.host == DEFAULT_HOST:
+                self._url = self.host
+            else:
+                self._url = self.host + f'/{KUNG}/{self.fc_name}'
         return self._url
 
     @property
