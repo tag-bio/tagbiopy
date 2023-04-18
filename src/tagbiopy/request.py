@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import os
 import json
 
 import requests
@@ -12,6 +13,7 @@ API_METHODS = ('/a', '/p', '/q', '/s', '/t')
 
 # In /q requests
 HEADER_DELIMITER = ': '
+HOST_CONFIG_FILE = os.path.join(os.environ['HOME'], '.tagbio.json')
 
 
 class _Request(ABC):
@@ -92,7 +94,17 @@ class _Request(ABC):
     @property
     def host(self):
         if self._host is None:
-            self._host = DEFAULT_HOST
+            if os.environ.get('TAGBIO_HOST_URL') is not None:
+                self._host = os.environ.get('TAGBIO_HOST_URL')
+            elif os.path.exists(HOST_CONFIG_FILE):
+                with open(HOST_CONFIG_FILE) as fh:
+                    s = json.load(fh)
+                self._host = s.get('TAGBIO_HOST_URL')
+                if self._host is None:
+                    self._host = DEFAULT_HOST
+            else:
+                self._host = DEFAULT_HOST
+
         return self._host
 
     @property
