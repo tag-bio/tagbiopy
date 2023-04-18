@@ -51,43 +51,37 @@ class FCPacket:
 
         self.name = self._fc.get('name')
         self.url = self._fc.get('url')
-        self._hostname = None
+        # Hostname is the url w/o the trailing slash
+        self.hostname = self.url[:-1]
         self.api_key = self._packet.get('api_key')
 
-        self._payload = None
+        self.q_request = None
+        self.background = None
+        self.analysis_variables = None
 
-        self.method = self._script.get('method')
-        self._q_request = None
-        self.background = self._script.get('background')
-        self.analysis_variables = self._script.get('analysis_variables')
+        if self._script is not None:
+            self.q_request = QRequest(
+                    host=self.hostname,
+                    api_key=self.api_key
+                )
+            self.background = self._script.get('background')
+            self.analysis_variables = self._script.get('analysis_variables')
+            logger.debug(f'{self!r}: background: {json.dumps(self.background, indent=4)}')
+            logger.debug(f'{self!r}: analysis variables: {json.dumps(self.analysis_variables, indent=4)}')
+        else:
+            logger.debug(f'{self!r}: No background specified')
+            logger.debug(f'{self!r}: No analysis variables specified')
 
         # Take care of passthrough arguments
         self.passthrough_arguments = PassThroughArguments(self._packet.get('passthrough_arguments'))
 
         logger.info(f'{self!r} initialized')
-        logger.debug(f'{self!r}: background: {json.dumps(self.background, indent=4)}')
-        logger.debug(f'{self!r}: analysis variables: {json.dumps(self.analysis_variables, indent=4)}')
+
 
     def __repr__(self):
         ret = self.__class__.__name__
         ret += f'(filename={self.filename!r})'
         return ret
-
-    @property
-    def hostname(self):
-        if self._hostname is None:
-            if self.url.endswith('/'):
-                self._hostname = self.url[:-1]
-        return self._hostname
-
-    @property
-    def q_request(self):
-        if self._q_request is None:
-            self._q_request = QRequest(
-                host=self.hostname,
-                api_key=self.api_key
-            )
-        return self._q_request
 
 
 class PassThroughArguments:
@@ -143,13 +137,16 @@ class TagbioData:
     @property
     def df(self) -> pd.DataFrame:
         if self._df is None:
-            content = self.fc_packet.q_request.get_content(
-                analysis_variables=self.fc_packet.analysis_variables,
-                background=self.fc_packet.background
-            )
-            self._df = content_to_dataframe(content)
+            if self.fc_packet.q_request is None:
+                pass
+            else:
+                content = self.fc_packet.q_request.get_content(
+                    analysis_variables=self.fc_packet.analysis_variables,
+                    background=self.fc_packet.background
+                )
+                self._df = content_to_dataframe(content)
 
-            logger.debug(f'{self}: shape {self._df.shape}, columns: {self._df.columns}')
+                logger.debug(f'{self}: shape {self._df.shape}, columns: {self._df.columns}')
         return self._df
 
 

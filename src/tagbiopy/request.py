@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
+import os
 import json
 
 import requests
 
-from tagbiopy import logger, DEFAULT_HOST
+from tagbiopy import logger, DEFAULT_HOST, KUNG
 from tagbiopy.utils import get_post_headers, log_exception, to_json
 
 SCHEME = 'https'
@@ -12,6 +13,7 @@ API_METHODS = ('/a', '/p', '/q', '/s', '/t')
 
 # In /q requests
 HEADER_DELIMITER = ': '
+HOST_CONFIG_FILE = os.path.join(os.environ['HOME'], '.tagbio.json')
 
 
 class _Request(ABC):
@@ -42,14 +44,20 @@ class _Request(ABC):
     """
     method_ = None
 
-    def __init__(self, host: str, api_key: str = None) -> None:
+    def __init__(self, host: str, fc_name: str = None, api_key: str = None,
+                 token: str = None) -> None:
         """
 
-        :param host: str.
+        :param host: str, data product host url.
+        :param fc_name: str, fc name, as in fc-XXXX. Default none, use for running on localhost
+        :param api_key: str
+        :param token: str, bearer token, found in request.auth
         """
         logger.info(f'{self.__class__}: Initialize')
         self._host = host
+        self.fc_name = fc_name
         self.api_key = api_key
+        self.token = token
 
         self._api_method = None
         self._auth = None
@@ -92,7 +100,17 @@ class _Request(ABC):
     @property
     def host(self):
         if self._host is None:
-            self._host = DEFAULT_HOST
+            if os.environ.get('TAGBIO_HOST_URL') is not None:
+                self._host = os.environ.get('TAGBIO_HOST_URL')
+            elif os.path.exists(HOST_CONFIG_FILE):
+                with open(HOST_CONFIG_FILE) as fh:
+                    s = json.load(fh)
+                self._host = s.get('TAGBIO_HOST_URL')
+                if self._host is None:
+                    self._host = DEFAULT_HOST
+            else:
+                self._host = DEFAULT_HOST
+
         return self._host
 
     @property
@@ -126,6 +144,16 @@ class _Request(ABC):
             from requests.auth import HTTPBasicAuth
             auth = HTTPBasicAuth(*self.api_key.split(':'))
             post_kwargs.update({'auth': auth})
+        elif self.token:
+            from requests.auth import AuthBase
+            class BearerAuth(AuthBase):
+                def __init__(self, _auth):
+                    self.auth = _auth
+
+                def __call__(self, _r):
+                    _r.headers["authorization"] = self.auth
+                    return _r
+            post_kwargs.update({'auth': BearerAuth(self.token)})
 
         try:
             r = requests.post(self.url, **post_kwargs)
@@ -152,7 +180,10 @@ class _Request(ABC):
     @property
     def url(self):
         if self._url is None:
-            self._url = f'{self.host}{self.api_method}'
+            if self.host == DEFAULT_HOST:
+                self._url = self.host
+            else:
+                self._url = self.host + f'/{KUNG}/{self.fc_name}'
         return self._url
 
     @property
