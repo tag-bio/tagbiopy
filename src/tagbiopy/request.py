@@ -44,17 +44,20 @@ class _Request(ABC):
     """
     method_ = None
 
-    def __init__(self, host: str, api_key: str = None, fc_name: str = None) -> None:
+    def __init__(self, host: str, fc_name: str = None, api_key: str = None,
+                 token: str = None) -> None:
         """
 
-        :param host:
-        :param api_key:
-        :param fc_name: fc name, string, as in fc-XXXX. Default none, use for running on localhost
+        :param host: str, data product host url.
+        :param fc_name: str, fc name, as in fc-XXXX. Default none, use for running on localhost
+        :param api_key: str
+        :param token: str, bearer token, found in request.auth
         """
         logger.info(f'{self.__class__}: Initialize')
         self._host = host
-        self.api_key = api_key
         self.fc_name = fc_name
+        self.api_key = api_key
+        self.token = token
 
         self._api_method = None
         self._auth = None
@@ -141,6 +144,16 @@ class _Request(ABC):
             from requests.auth import HTTPBasicAuth
             auth = HTTPBasicAuth(*self.api_key.split(':'))
             post_kwargs.update({'auth': auth})
+        elif self.token:
+            from requests.auth import AuthBase
+            class BearerAuth(AuthBase):
+                def __init__(self, _auth):
+                    self.auth = _auth
+
+                def __call__(self, _r):
+                    _r.headers["authorization"] = self.auth
+                    return _r
+            post_kwargs.update({'auth': BearerAuth(self.token)})
 
         try:
             r = requests.post(self.url, **post_kwargs)
