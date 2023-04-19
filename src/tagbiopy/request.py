@@ -4,7 +4,7 @@ import json
 
 import requests
 
-from tagbiopy import logger, DEFAULT_HOST, KUNG
+from tagbiopy import logger, DEFAULT_HOST, KUNG, KUNG_CAPACITORS
 from tagbiopy.utils import get_post_headers, log_exception, to_json
 
 SCHEME = 'https'
@@ -56,7 +56,7 @@ class _Request(ABC):
         logger.info(f'{self.__class__}: Initialize')
         self._host = host
         self.fc_name = fc_name
-        self.api_key = api_key
+        self._api_key = api_key
         self.token = token
 
         self._api_method = None
@@ -74,6 +74,19 @@ class _Request(ABC):
         str_repr += ', '.join([f'{v!r}' for v in [self.host, self.api_key] if v])
         str_repr += ')'
         return str_repr
+
+    @property
+    def api_key(self):
+        if self._api_key is None:
+            if os.environ.get('TAGBIO_API_KEY') is not None:
+                self._api_key = os.environ.get('TAGBIO_API_KEY')
+            elif os.path.exists(HOST_CONFIG_FILE):
+                with open(HOST_CONFIG_FILE) as fh:
+                    s = json.load(fh)
+                self._api_key = s.get('TAGBIO_API_KEY')
+            else:
+                pass
+        return self._api_key
 
     @property
     def api_method(self):
@@ -180,10 +193,10 @@ class _Request(ABC):
     @property
     def url(self):
         if self._url is None:
-            if self.host == DEFAULT_HOST:
-                self._url = self.host
-            else:
-                self._url = self.host + f'/{KUNG}/{self.fc_name}'
+            self._url = self.host + self.api_method
+            # TODO: Update for non DEFAULT_HOST
+            if self.host != DEFAULT_HOST:
+                self._url +=  f'/{KUNG}/{self.fc_name}'
         return self._url
 
     @property
