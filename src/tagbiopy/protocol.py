@@ -46,14 +46,16 @@ class FCPacket:
         self._packet = load_json(self.filename)
 
         # Get the 'fc' part
+        self._request = self._packet.get('request')
         self._fc = self._packet.get('fc')
         self._script = self._packet.get('script')
 
         self.name = self._fc.get('name')
         self.url = self._fc.get('url')
         # Hostname is the url w/o the trailing slash
-        self.hostname = self.url[:-1]
+        self.host = self.url[:-1]
         self.api_key = self._packet.get('api_key')
+        self.token = self._request.get('auth')
 
         self.q_request = None
         self.background = None
@@ -61,7 +63,7 @@ class FCPacket:
 
         if self._script is not None:
             self.q_request = QRequest(
-                    host=self.hostname,
+                    host=self.host,
                     api_key=self.api_key
                 )
             self.background = self._script.get('background')
