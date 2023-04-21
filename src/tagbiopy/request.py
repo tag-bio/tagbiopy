@@ -13,7 +13,8 @@ API_METHODS = ('/a', '/p', '/q', '/s', '/t')
 
 # In /q requests
 HEADER_DELIMITER = ': '
-HOST_CONFIG_FILE = os.path.join(os.environ['HOME'], '.tagbio.json')
+HOST_CONFIG_JSON = os.path.join(os.environ['HOME'], '.tagbio.json')
+HOST_CONFIG_YAML = os.path.join(os.environ['HOME'], '.tagbio.yaml')
 
 
 class _Request(ABC):
@@ -80,12 +81,20 @@ class _Request(ABC):
         if self._api_key is None:
             if os.environ.get('TAGBIO_API_KEY') is not None:
                 self._api_key = os.environ.get('TAGBIO_API_KEY')
-            elif os.path.exists(HOST_CONFIG_FILE):
-                with open(HOST_CONFIG_FILE) as fh:
-                    s = json.load(fh)
+
+            elif os.path.exists(HOST_CONFIG_YAML):
+                from tagbiopy.utils import load_yaml
+                s = load_yaml(HOST_CONFIG_YAML, catch_error=False)
                 self._api_key = s.get('TAGBIO_API_KEY')
+
+            elif os.path.exists(HOST_CONFIG_JSON):
+                from tagbiopy.utils import load_json
+                s = load_json(HOST_CONFIG_JSON, catch_error=False)
+                self._api_key = s.get('TAGBIO_API_KEY')
+
             else:
                 pass
+
         return self._api_key
 
     @property
@@ -112,11 +121,41 @@ class _Request(ABC):
 
     @property
     def host(self):
+        """
+        Find host in TAGBIO_HOST_URL environment variable.
+        If that does not work, examine HOST_CONFIG_
+        :return: str, host name
+        """
         if self._host is None:
             if os.environ.get('TAGBIO_HOST_URL') is not None:
                 self._host = os.environ.get('TAGBIO_HOST_URL')
-            elif os.path.exists(HOST_CONFIG_FILE):
-                with open(HOST_CONFIG_FILE) as fh:
+            elif os.path.exists(HOST_CONFIG_YAML):
+                from tagbiopy.utils import load_yaml
+                s = load_yaml(HOST_CONFIG_YAML)
+                self._host = s.get('TAGBIO_HOST_URL')
+            elif os.path.exists(HOST_CONFIG_JSON):
+                with open(HOST_CONFIG_JSON) as fh:
+                    try:
+                        s = json.load(fh)
+                    except json.JSONDecodeError as e:
+                        msg = f'{HOST_CONFIG_JSON}: improperly formatted json file.'
+                        msg += f'\n{e.msg}'
+                        logger.error(msg, exc_info=True)
+                        raise RuntimeError(msg)
+                    else:
+                        self._host = s.get('TAGBIO_HOST_URL')
+            else:
+                pass
+
+            # Still None?
+            if self._host is None:
+                self._host = DEFAULT_HOST
+
+
+
+
+            elif os.path.exists(HOST_CONFIG_JSON):
+                with open(HOST_CONFIG_JSON) as fh:
                     s = json.load(fh)
                 self._host = s.get('TAGBIO_HOST_URL')
                 if self._host is None:
@@ -159,19 +198,13 @@ class _Request(ABC):
                 auth = HTTPBasicAuth(*self.api_key.split(':'))
                 post_kwargs.update({'auth': auth})
         elif self.token:
-            from requests.auth import AuthBase
-            class BearerAuth(AuthBase):
-                def __init__(self, _auth):
-                    self.auth = _auth
-
-                def __call__(self, _r):
-                    _r.headers["authorization"] = self.auth
-                    return _r
+            from .utils import BearerAuth
             post_kwargs.update({'auth': BearerAuth(self.token)})
 
         try:
             r = requests.post(self.url, **post_kwargs)
-            logger.debug(f'{self!r}: {get_post_headers(r)}')
+            logger.debug(f'{self!r}: post_kwargs = {json.dumps(post_kwargs, indent=2)}')
+            logger.info(f'{self!r}: {get_post_headers(r)}')
             if r.ok:
                 return r
             else:
