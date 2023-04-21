@@ -6,6 +6,8 @@ import os
 
 import pandas as pd
 
+from requests.auth import AuthBase
+
 from tagbiopy import logger
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -302,22 +304,30 @@ def list_properties(_class, include_private=False):
     return ret
 
 
-def load_yaml(yaml_file):
+def load_yaml(yaml_file, catch_error=True):
     import yaml
 
     with open(yaml_file) as fh:
         try:
-            config = yaml.safe_load(fh)
+            s = yaml.safe_load(fh)
         except yaml.YAMLError as e:
             logger.error(e, exc_info=True)
-            raise
+            if catch_error:
+                raise
 
-    return config
+    return s
 
 
-def load_json(filename):
+def load_json(filename, catch_error=True):
     with open(filename) as fh:
-        return json.load(fh)
+        try:
+            s = json.load(fh)
+        except json.JSONDecodeError as e:
+            logger.error(e, exc_info=True)
+            if catch_error:
+                raise
+
+    return s
 
 
 def log_exception(exception_class, message: str, level=logging.DEBUG, cause=None, terminate=True):
@@ -369,3 +379,12 @@ def returns(rtype):
 
 def to_json(variable_object):
     return variable_object.as_dict
+
+
+class BearerAuth(AuthBase):
+    def __init__(self, _auth):
+        self.auth = _auth
+
+    def __call__(self, _r):
+        _r.headers["authorization"] = self.auth
+        return _r
