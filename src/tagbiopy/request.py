@@ -154,9 +154,10 @@ class _Request(ABC):
         # If api_key is passed, it looks like: "email:uuid". Therefore, split on ':' and
         # pass the elements of the list as the username and password in HTTPBasicAuth
         if self.api_key:
-            from requests.auth import HTTPBasicAuth
-            auth = HTTPBasicAuth(*self.api_key.split(':'))
-            post_kwargs.update({'auth': auth})
+            if self.host != DEFAULT_HOST:
+                from requests.auth import HTTPBasicAuth
+                auth = HTTPBasicAuth(*self.api_key.split(':'))
+                post_kwargs.update({'auth': auth})
         elif self.token:
             from requests.auth import AuthBase
             class BearerAuth(AuthBase):
