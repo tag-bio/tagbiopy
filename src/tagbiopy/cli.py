@@ -5,7 +5,7 @@ import json
 
 from typing import Dict
 
-from tagbiopy import logger
+from tagbiopy import logger, __version__
 from tagbiopy.protocol import load_function, TagbioData, TagbioResult
 from tagbiopy.utils import create_temp_file, now, print_ts
 
@@ -44,6 +44,7 @@ def set_extension_and_path(args: argparse.Namespace) -> (str, str):
 
 
 def run():
+    print_ts(f'tagbiopy {__version__}', flush=True)
     args = parse_arguments()
 
     msg = f'Python command line arguments:\n{json.dumps(vars(args), indent=2)}'
