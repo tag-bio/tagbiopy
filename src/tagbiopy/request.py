@@ -199,7 +199,7 @@ class _Request(ABC):
 
         try:
             r = requests.post(self.url, **post_kwargs)
-            logger.debug(f'{self!r}: post_kwargs = {json.dump(post_kwargs, indent=2)}')
+            logger.debug(f'{self!r}: post_kwargs = {json.dumps(post_kwargs, indent=2)}')
             logger.info(f'{self!r}: {get_post_headers(r)}')
             if r.ok:
                 return r
