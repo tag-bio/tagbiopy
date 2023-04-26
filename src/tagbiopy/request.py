@@ -150,10 +150,6 @@ class _Request(ABC):
             # Still None?
             if self._host is None:
                 self._host = DEFAULT_HOST
-
-
-
-
             elif os.path.exists(HOST_CONFIG_JSON):
                 with open(HOST_CONFIG_JSON) as fh:
                     s = json.load(fh)
@@ -203,7 +199,7 @@ class _Request(ABC):
 
         try:
             r = requests.post(self.url, **post_kwargs)
-            logger.debug(f'{self!r}: post_kwargs = {json.dumps(post_kwargs, indent=2)}')
+            logger.debug(f'{self!r}: post_kwargs = {json.dump(post_kwargs, indent=2)}')
             logger.info(f'{self!r}: {get_post_headers(r)}')
             if r.ok:
                 return r
@@ -228,9 +224,6 @@ class _Request(ABC):
     def url(self):
         if self._url is None:
             self._url = self.host + self.api_method
-            # TODO: Update for non DEFAULT_HOST
-            if self.host != DEFAULT_HOST:
-                self._url +=  f'/{KUNG}/{self.fc_name}'
         return self._url
 
     @property
