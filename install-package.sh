@@ -20,7 +20,7 @@ echo "*** Building tagbio python library in dev mode"
 # Use environment to install
 
 # Update the env
-conda env update -f environment.yml
+conda env update -f ${SCRIPT_DIR}/environment.yml
 
 apt-get clean -y
 apt-get autoremove -y
