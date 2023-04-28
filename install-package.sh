@@ -15,12 +15,12 @@ echo "*** Building tagbio python library in dev mode"
 #pip install -r ./requirements.txt
 #pip install $SCRIPT_DIR/dist/*
 
-# pip install -U pip
-# pip install -e $SCRIPT_DIR
+conda run -n base pip install -e $SCRIPT_DIR
+
 # Use environment to install
 
 # Update the env
-conda env update -f ${SCRIPT_DIR}/environment.yml
+# conda env update -f ${SCRIPT_DIR}/environment.yml
 
 apt-get clean -y
 apt-get autoremove -y
