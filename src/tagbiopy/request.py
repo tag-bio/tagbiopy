@@ -45,7 +45,7 @@ class _Request(ABC):
     """
     method_ = None
 
-    def __init__(self, host: str, fc_name: str = None, api_key: str = None,
+    def __init__(self, host: str = None, fc_name: str = None, api_key: str = None,
                  token: str = None) -> None:
         """
 
@@ -128,35 +128,23 @@ class _Request(ABC):
         """
         if self._host is None:
             if os.environ.get('TAGBIO_HOST_URL') is not None:
-                self._host = os.environ.get('TAGBIO_HOST_URL')
+                s = os.environ
+
             elif os.path.exists(HOST_CONFIG_YAML):
                 from tagbiopy.utils import load_yaml
                 s = load_yaml(HOST_CONFIG_YAML)
-                self._host = s.get('TAGBIO_HOST_URL')
-            elif os.path.exists(HOST_CONFIG_JSON):
-                with open(HOST_CONFIG_JSON) as fh:
-                    try:
-                        s = json.load(fh)
-                    except json.JSONDecodeError as e:
-                        msg = f'{HOST_CONFIG_JSON}: improperly formatted json file.'
-                        msg += f'\n{e.msg}'
-                        logger.error(msg, exc_info=True)
-                        raise RuntimeError(msg)
-                    else:
-                        self._host = s.get('TAGBIO_HOST_URL')
-            else:
-                pass
 
-            # Still None?
-            if self._host is None:
-                self._host = DEFAULT_HOST
             elif os.path.exists(HOST_CONFIG_JSON):
-                with open(HOST_CONFIG_JSON) as fh:
-                    s = json.load(fh)
-                self._host = s.get('TAGBIO_HOST_URL')
-                if self._host is None:
-                    self._host = DEFAULT_HOST
+                from tagbiopy.utils import load_json
+                s = load_json((HOST_CONFIG_JSON))
+
             else:
+                s = {}
+
+            self._host = s.get('TAGBIO_HOST_URL')
+
+            # Still None? Set to default
+            if self._host is None:
                 self._host = DEFAULT_HOST
 
         return self._host
@@ -177,11 +165,8 @@ class _Request(ABC):
         self._payload = val
 
     @property
-    def post(self) -> requests.post:
-        logger.info(f'{self!r}: issue POST request')
-        logger.debug(f'{self!r}: requests.post(url={self.url!r}, data={self.data}, timeout={TIMEOUT})')
-
-        post_kwargs = {
+    def _post_kwargs(self):
+        kwargs = {
             'data': self.data,
             'timeout': TIMEOUT
         }
@@ -192,14 +177,21 @@ class _Request(ABC):
             if self.host != DEFAULT_HOST:
                 from requests.auth import HTTPBasicAuth
                 auth = HTTPBasicAuth(*self.api_key.split(':'))
-                post_kwargs.update({'auth': auth})
+                kwargs.update({'auth': auth})
         elif self.token:
             from .utils import BearerAuth
-            post_kwargs.update({'auth': BearerAuth(self.token)})
+            kwargs.update({'auth': BearerAuth(self.token)})
+
+        return kwargs
+
+    @property
+    def post(self) -> requests.post:
+        logger.info(f'{self!r}: issue POST request')
+        logger.debug(f'{self!r}: requests.post(url={self.url!r}, {self._post_kwargs})')
+        logger.debug(f'{self!r}: _post_kwargs = {self._post_kwargs}')
 
         try:
-            r = requests.post(self.url, **post_kwargs)
-            logger.debug(f'{self!r}: post_kwargs = {json.dumps(post_kwargs, indent=2)}')
+            r = requests.post(self.url, **self._post_kwargs)
             logger.info(f'{self!r}: {get_post_headers(r)}')
             if r.ok:
                 return r
@@ -237,8 +229,9 @@ class _Request(ABC):
 class SRequest(_Request):
     method_ = '/s'
 
-    def __init__(self, host: str, api_key: str = None) -> None:
-        super().__init__(host, api_key)
+    def __init__(self, host: str = None, fc_name: str = None, api_key: str = None,
+                 token: str = None) -> None:
+        super().__init__(host, fc_name, api_key, token)
 
         self.payload = self.prepare_payload()
 
@@ -265,8 +258,9 @@ class PRequest(_Request):
     method_ = '/p'
     request_types = ('get_tags', 'get_protocols')
 
-    def __init__(self, host: str, api_key: str = None) -> None:
-        super().__init__(host, api_key)
+    def __init__(self, host: str = None, fc_name: str = None, api_key: str = None,
+                 token: str = None) -> None:
+        super().__init__(host, fc_name, api_key, token)
         self._protocols = None
 
     @staticmethod
@@ -331,8 +325,9 @@ class QRequest(_Request):
     method_ = '/q'
     allowed_methods = ('collection', 'download', 'summary', 'variable')
 
-    def __init__(self, host: str, api_key: str = None) -> None:
-        super().__init__(host, api_key)
+    def __init__(self, host: str = None, fc_name: str = None, api_key: str = None,
+                 token: str = None) -> None:
+        super().__init__(host, fc_name, api_key, token)
 
         # Initialize collection property. No need for summary (not used)
         # and variable (may take too long to return)
