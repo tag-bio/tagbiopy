@@ -21,7 +21,7 @@ conda run -n base pip install -e $SCRIPT_DIR
 # Use environment to install
 # conda env update -f ${SCRIPT_DIR}/environment.yml
 
-conda install -c conda-forge pyyaml 
+conda install -c conda-forge pyyaml yaml
 
 apt-get clean -y
 apt-get autoremove -y
