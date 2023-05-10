@@ -10,10 +10,12 @@ from tagbiopy import logger
 from tagbiopy.utils import check_arg_type, check_list_arg_types, extract_data_reference_type
 from tagbiopy.utils import get_typename, list_attributes, log_exception
 
-
-__all__ = ['to_json', 'Categorical', 'Numeric', 'DataFrameCategorical', 'NumericMatrix', 'CategoricalBatch',
-           'CategoricalCompound'
-           ]
+__all__ = [
+    'to_json',
+    'Categorical', 'Numeric',
+    'CategoricalMatrix', 'NumericMatrix',
+    'CategoricalBatch', 'CategoricalCompound'
+]
 
 
 def to_json(variable_object):
@@ -266,11 +268,11 @@ class DataFrameImpl(VariableBlockImpl):
         self.columns = check_list_arg_types(columns, str)
 
 
-class DataFrameCategoricalBlock(DataFrameBlock):
+class CategoricalMatrixBlock(DataFrameBlock):
     pass
 
 
-class DataFrameCategorical(DataFrameImpl, DataFrameCategoricalBlock):
+class CategoricalMatrix(DataFrameImpl, CategoricalMatrixBlock):
     type_ = 'categorical-matrix'
 
     def __init__(self, collection=None, variable=None, columns=None):
@@ -343,16 +345,16 @@ class NumericCompound(VariableBlockImpl, NumericBlock):
 
 
 CATEGORICAL_COLLECTION_DATA_FUNCTION_TYPES = (Categorical, CategoricalBatch, CategoricalCompound, NumericSlice)
-DATAFRAME_COLLECTION_DATA_FUNCTION_TYPES = (DataFrameCategorical, NumericMatrix)
+DATAFRAME_COLLECTION_DATA_FUNCTION_TYPES = (CategoricalMatrix, NumericMatrix)
 NUMERIC_COLLECTION_DATA_FUNCTION_TYPES = (Numeric,)
 
 ALL_COLLECTION_DATA_FUNCTION_TYPES = (
     Categorical, Numeric, CategoricalBatch, CategoricalCompound, NumericSlice,
-    DataFrameCategorical, NumericMatrix
+    CategoricalMatrix, NumericMatrix
 )
 
 COMMON_COLLECTION_DATA_FUNCTION_TYPES = (Categorical, Numeric, CategoricalBatch, CategoricalCompound, NumericSlice)
-COLLECTION_DATA_FUNCTION_TYPES = (Categorical, DataFrameCategorical, NumericMatrix, Numeric)
+COLLECTION_DATA_FUNCTION_TYPES = (Categorical, Numeric, CategoricalMatrix, NumericMatrix)
 STR_COLLECTION_DATA_FUNCTION_TYPES = tuple([v.type_ for v in COLLECTION_DATA_FUNCTION_TYPES])
 
 
@@ -360,8 +362,8 @@ def variable_block_factory(data_function_type: str) -> Union[ALL_COLLECTION_DATA
     """
     Turns str to data_function_type object
         'categorical' to Categorical
-        'data-frame-categorical' to DataFrameCategorical
-        'data-frame-numeric' to NumericMatrix
+        'categorical-matrix' to CategoricalMatrix
+        'numeric-matrix' to NumericMatrix
         'numeric' to Numeric
 
     :param data_function_type: str, one of
@@ -457,7 +459,7 @@ class _Collection(dict):
 
         for var_block in results:
             values = var_block['values']
-            variable = values['variable']   
+            variable = values['variable']
             self.update({variable: variable_factory(**values)})
 
     def get_variable(self, variable: str):
@@ -490,8 +492,8 @@ class CategoricalCollection(_Collection):
         self.collection_entity_count = kwargs.pop('collection-entity-count')
 
 
-class DataFrameCategoricalCollection(_Collection):
-    type_ = DataFrameCategorical.type_
+class CategoricalMatrixCollection(_Collection):
+    type_ = CategoricalMatrix.type_
 
 
 class NumericMatrixCollection(_Collection):
@@ -504,7 +506,7 @@ class NumericCollection(_Collection):
 
 COLLECTION_TYPES = (
     CategoricalCollection,
-    DataFrameCategoricalCollection,
+    CategoricalMatrixCollection,
     NumericMatrixCollection,
     NumericCollection
 )
