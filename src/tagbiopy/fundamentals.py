@@ -535,7 +535,15 @@ class NumericVariable(_Variable):
     type_ = 'numeric'
 
 
-DATA_FUNCTION_TYPES = (CategoricalVariable, NumericVariable)
+class CategoricalMatrixVariable(_Variable):
+    type_ = 'categorical-matrix'
+
+
+class NumericMatrixVariable(_Variable):
+    type_ = 'numeric-matrix'
+
+
+DATA_FUNCTION_TYPES = (CategoricalVariable, NumericVariable, CategoricalMatrixVariable, NumericMatrixVariable)
 STR_DATA_FUNCTION_TYPES = tuple([v.type_ for v in DATA_FUNCTION_TYPES])
 
 
