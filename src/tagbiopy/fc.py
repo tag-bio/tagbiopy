@@ -122,10 +122,6 @@ class FC:
         return ret
 
     @property
-    def _categorical_collections(self):
-        return self._collections['categorical']
-
-    @property
     def _collections(self) -> dict:
         """Parse all variables and assign them to their collections
 
@@ -184,10 +180,6 @@ class FC:
             logger.info(f'{self!r}: {count} collections parsed')
 
         return self.__collections
-
-    @property
-    def _numeric_collections(self):
-        return self._collections['numeric']
 
     @property
     def api_key(self) -> str:
@@ -394,13 +386,20 @@ class FC:
 
         for i, arg in enumerate([v for v in args]):
             logger.debug(f'{i}: {arg}')
-            if isinstance(arg, str):
-                if arg in self._categorical_collections:
-                    self.analysis_variables.append(fundamentals.Categorical(collection=arg))
-                elif arg in self._numeric_collections:
-                    self.analysis_variables.append(fundamentals.Numeric(collection=arg))
+            if isinstance(arg, fundamentals.COLLECTION_DATA_FUNCTION_TYPES):
+                self.analysis_variables.append(arg)
+            elif isinstance(arg, str):
+                # Go over all data_types and break as soon as the arg is found among the first data_function_type.
+                # For ties, no luck, get the first.
+                for collection_type in self.available_collection_types:
+                    if arg in self._collections[collection_type]:
+                        self.analysis_variables.append(
+                            fundamentals.variable_block_factory(data_function_type=collection_type)(arg)
+                        )
+                        break
                 else:
-                    msg = f'arg[{i}]: {arg!r} neither "categorical" nor "numeric".'
+                    msg = f'arg[{i}]: {arg!r} invalid data function type.'
+                    msg += f' Not found among {fundamentals.COLLECTION_DATA_FUNCTION_TYPES}.'
                     log_exception(TypeError, msg)
 
             elif isinstance(arg, tuple):
@@ -409,20 +408,20 @@ class FC:
                 # So default behavior is that for categorical variables we keep just collection names,
                 # for numeric variables we specify both collection and variables
                 collection, variable = arg
-                if collection in self._categorical_collections:
-                    self.analysis_variables.append(fundamentals.Categorical(collection))
-                elif collection in self._numeric_collections:
-                    # Allow a list of variables
-                    if isinstance(variable, str):
-                        self.analysis_variables.append(fundamentals.Numeric(collection, variable))
-                    elif isinstance(variable, list):
-                        for v in variable:
-                            self.analysis_variables.append(fundamentals.Numeric(collection, v))
-                else:
-                    msg = f'{i}: arg {arg} collection {collection!r} invalid type, neither "categorical" nor "numeric".'
+                for collection_type in self.available_collection_types:
+                    if arg in self._collections[collection_type]:
+                        self.analysis_variables.append(
+                            fundamentals.variable_block_factory(data_function_type=collection_type)(collection, variable)
+                        )
+                        break
+                    else:
+                        msg = f'{i}: arg {arg} collection {collection!r} invalid data function type.'
+                        msg += f' Not found among {fundamentals.COLLECTION_DATA_FUNCTION_TYPES}.'
                     log_exception(TypeError, msg)
-            elif isinstance(arg, (fundamentals.Categorical, fundamentals.Numeric)):
-                self.analysis_variables.append(arg)
+            else:
+                msg = f'{i}: arg {arg} should be a string, a touple or one of '
+                msg += fundamentals.COLLECTION_DATA_FUNCTION_TYPES
+                msg += '.'
 
         self.analysis_variables = list(set(self.analysis_variables)) or None
 
