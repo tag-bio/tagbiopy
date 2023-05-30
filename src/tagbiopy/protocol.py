@@ -48,7 +48,11 @@ class FCPacket:
         # Get the 'fc' part
         self._request = self._packet.get('request')
         self._fc = self._packet.get('fc')
-        self._script = self._packet.get('script')
+
+        self.script = self._packet.get('script')
+        self.background = self.script.get('background')
+        self.analysis_variables = self.script.get('analysis_variables')
+        self._log_script()
 
         self.name = self._fc.get('name')
         self.url = self._fc.get('url')
@@ -58,32 +62,37 @@ class FCPacket:
         self.token = self._request.get('auth')
 
         self.q_request = None
-        self.background = None
-        self.analysis_variables = None
 
-        if self._script is not None:
+        if self.script is not None:
             self.q_request = QRequest(
                     host=self.host,
-                    api_key=self.api_key
+                    api_key=self.api_key,
+                    token=self.token
                 )
-            self.background = self._script.get('background')
-            self.analysis_variables = self._script.get('analysis_variables')
-            logger.debug(f'{self!r}: background: {json.dumps(self.background, indent=4)}')
-            logger.debug(f'{self!r}: analysis variables: {json.dumps(self.analysis_variables, indent=4)}')
-        else:
-            logger.debug(f'{self!r}: No background specified')
-            logger.debug(f'{self!r}: No analysis variables specified')
 
         # Take care of passthrough arguments
         self.passthrough_arguments = PassThroughArguments(self._packet.get('passthrough_arguments'))
 
         logger.info(f'{self!r} initialized')
 
-
     def __repr__(self):
         ret = self.__class__.__name__
         ret += f'(filename={self.filename!r})'
         return ret
+
+    def _log_script(self):
+        logger.debug(f'{self!r}: script: {json.dumps(self.script, indent=4)}')
+
+        if self.background is not None:
+            logger.debug(f'{self!r}: background: {json.dumps(self.background, indent=4)}')
+        else:
+            logger.debug(f'{self!r}: No background')
+
+        if self.analysis_variables is not None:
+            logger.debug(f'{self!r}: analysis variables: {json.dumps(self.analysis_variables, indent=4)}')
+        else:
+            logger.debug(f'{self!r}: No analysis variables')
+
 
 
 class PassThroughArguments:
@@ -142,10 +151,7 @@ class TagbioData:
             if self.fc_packet.q_request is None:
                 pass
             else:
-                content = self.fc_packet.q_request.get_content(
-                    analysis_variables=self.fc_packet.analysis_variables,
-                    background=self.fc_packet.background
-                )
+                content = self.fc_packet.q_request.get_content(script=self.fc_packet.script)
                 self._df = content_to_dataframe(content)
 
                 logger.debug(f'{self}: shape {self._df.shape}, columns: {self._df.columns}')
