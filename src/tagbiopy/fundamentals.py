@@ -1,6 +1,5 @@
 import inspect
 import json
-import logging
 import reprlib
 import sys
 
