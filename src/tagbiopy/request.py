@@ -68,6 +68,9 @@ class _Request(ABC):
         self._user = None
         self._pwd = None
 
+        # json.dump and json.dumps argument
+        self.indent = None
+
         logger.info(f'{self!r}: Initialized')
 
     def __repr__(self):
@@ -117,7 +120,7 @@ class _Request(ABC):
 
     @property
     def data(self):
-        return json.dumps(self.payload, indent=2, default=to_json)
+        return json.dumps(self.payload, indent=self.indent, default=to_json)
 
     @property
     def host(self):
@@ -136,7 +139,7 @@ class _Request(ABC):
 
             elif os.path.exists(HOST_CONFIG_JSON):
                 from tagbiopy.utils import load_json
-                s = load_json((HOST_CONFIG_JSON))
+                s = load_json(HOST_CONFIG_JSON)
 
             else:
                 s = {}
@@ -173,33 +176,58 @@ class _Request(ABC):
 
         # If api_key is passed, it looks like: "email:uuid". Therefore, split on ':' and
         # pass the elements of the list as the username and password in HTTPBasicAuth
+        http_basic_auth = None
+        bearer_auth = None
         if self.api_key:
             if self.host != DEFAULT_HOST:
                 from requests.auth import HTTPBasicAuth
-                auth = HTTPBasicAuth(*self.api_key.split(':'))
-                kwargs.update({'auth': auth})
-        elif self.token:
+                http_basic_auth = HTTPBasicAuth(*self.api_key.split(':'))
+
+        if self.token:
             from .utils import BearerAuth
-            kwargs.update({'auth': BearerAuth(self.token)})
+            bearer_auth = BearerAuth(self.token)
+
+        # If both defined, use token. Token always has the highest priority.
+        # Then go one by one
+        auth = None
+        if http_basic_auth is not None and bearer_auth is not None:
+            auth = bearer_auth
+        elif bearer_auth is not None:
+            auth = bearer_auth
+        elif http_basic_auth is not None:
+            auth = http_basic_auth
+        else:
+            if self.host != DEFAULT_HOST:
+                msg = f'{self!r}: API key or token authentication needed for host {self.host!r}'
+                log_exception(RuntimeError, message=msg, terminate=True)
+            else:
+                msg = f'{self!r}: No authentication provided, no authentication needed with {self.host!r}'
+                logger.debug(msg)
+
+        kwargs.update({'auth': auth})
 
         return kwargs
 
     @property
     def post(self) -> requests.post:
         logger.info(f'{self!r}: issue POST request')
+        # Note: do not indent json passed to reqests.post
+        self.indent = None
         logger.debug(f'{self!r}: requests.post(url={self.url!r}, {self._post_kwargs})')
+        # For logging: set indent to 2 in self.data
+        self.indent = 2
         logger.debug(f'{self!r}: _post_kwargs = {self._post_kwargs}')
+        # Reset json to no indent
+        self.indent = None
 
         try:
             r = requests.post(self.url, **self._post_kwargs)
-            logger.info(f'{self!r}: {get_post_headers(r)}')
-            if r.ok:
-                return r
-            else:
-                msg = f'HTTP {r.request.method} response status code {r.status_code}, content: {r.content}'
-                log_exception(exception_class=requests.HTTPError, message=msg)
-        except ConnectionRefusedError as e:
-            log_exception(ConnectionRefusedError, str(e))
+            logger.info(f'{self!r}: headers: {get_post_headers(r)}')
+            msg = f'HTTP {r.request.method} response status code {r.status_code}, content: {r.content}'
+            logger.debug(msg)
+            r.raise_for_status()
+        except requests.HTTPError as e:
+            log_exception(requests.HTTPError, message=str(e))
 
     @abstractmethod
     def prepare_payload(self, *args, **kwargs):
@@ -357,8 +385,11 @@ class QRequest(_Request):
             self._collections = self.as_dict
         return self._collections
 
-    def get_content(self, analysis_variables=None, background=None) -> bytes:
-        self.payload = self.prepare_payload('download', analysis_variables, background)
+    def get_content(self, script=None, analysis_variables=None, background=None) -> bytes:
+        if script is not None:
+            self.payload = script
+        else:
+            self.payload = self.prepare_payload('download', analysis_variables, background)
         return self.post.content
 
     def get_variable_obj(self, analysis_variables):

@@ -377,6 +377,17 @@ def returns(rtype):
     return check_returns
 
 
+def set_fc_host(fc: str):
+    """
+    Set fc-host in the format
+    :param fc: str, such fc-abc, fc-xyz, etc.
+    :return: str, url to the fc endpoint
+    """
+    base_url = os.environ['TAGBIO_BASE_URL']
+
+    return  base_url + f'/fc-svc/{fc}'
+
+
 def to_json(variable_object):
     return variable_object.as_dict
 
