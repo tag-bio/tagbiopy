@@ -385,11 +385,29 @@ def set_fc_host(fc: str):
     """
     base_url = os.environ['TAGBIO_BASE_URL']
 
-    return  base_url + f'/fc-svc/{fc}'
+    return base_url + f'/fc-svc/{fc}'
 
 
 def to_json(variable_object):
     return variable_object.as_dict
+
+
+def validate(name, s, allowed):
+    """
+    Check if s is in the allowed list. If not, raise ValueError
+    :param name: str, what should s be called (method, request type, etc).
+    :param s: str
+    :param allowed: List[str] of s to choose from
+    :return:
+    """
+
+    if s not in allowed:
+        log_exception(
+            ValueError,
+            f'{s}: invalid {name}. Choose from {allowed}.'
+        )
+
+    return s
 
 
 class BearerAuth(AuthBase):
