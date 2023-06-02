@@ -2,7 +2,7 @@ import json
 import pandas as pd
 
 from tagbiopy import logger
-from tagbiopy.request import QRequest
+from tagbiopy.request import QRequest, HEADER_DELIMITER
 from tagbiopy.utils import content_to_dataframe, list_attributes, load_json, log_exception
 
 
@@ -61,15 +61,6 @@ class FCPacket:
         self.api_key = self._packet.get('api_key')
         self.token = self._request.get('auth')
 
-        self.q_request = None
-
-        if self.script is not None:
-            self.q_request = QRequest(
-                    host=self.host,
-                    api_key=self.api_key,
-                    token=self.token
-                )
-
         # Take care of passthrough arguments
         self.passthrough_arguments = PassThroughArguments(self._packet.get('passthrough_arguments'))
 
@@ -92,7 +83,6 @@ class FCPacket:
             logger.debug(f'{self!r}: analysis variables: {json.dumps(self.analysis_variables, indent=4)}')
         else:
             logger.debug(f'{self!r}: No analysis variables')
-
 
 
 class PassThroughArguments:
@@ -148,14 +138,21 @@ class TagbioData:
     @property
     def df(self) -> pd.DataFrame:
         if self._df is None:
-            if self.fc_packet.q_request is None:
-                pass
-            else:
-                content = self.fc_packet.q_request.get_content(script=self.fc_packet.script)
-                self._df = content_to_dataframe(content)
+            content = self.q_request.get_content(script=self.fc_packet.script)
+            self._df = content_to_dataframe(content)
 
-                logger.debug(f'{self}: shape {self._df.shape}, columns: {self._df.columns}')
+            logger.debug(f'{self}: shape {self._df.shape}, columns: {self._df.columns}')
         return self._df
+
+    @property
+    def q_request(self):
+        if self._q_request is None:
+            self._q_request = QRequest(
+                host=self.fc_packet.host,
+                api_key=self.fc_packet.api_key,
+                token=self.fc_packet.token
+            )
+        return self._q_request
 
 
 class TagbioResult:
