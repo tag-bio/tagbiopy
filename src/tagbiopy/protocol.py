@@ -2,7 +2,7 @@ import json
 import pandas as pd
 
 from tagbiopy import logger
-from tagbiopy.request import QRequest, HEADER_DELIMITER
+from tagbiopy.request import QRequest
 from tagbiopy.utils import content_to_dataframe, list_attributes, load_json, log_exception
 
 
@@ -50,8 +50,10 @@ class FCPacket:
         self._fc = self._packet.get('fc')
 
         self.script = self._packet.get('script')
-        self.background = self.script.get('background')
-        self.analysis_variables = self.script.get('analysis_variables')
+        self._background = None
+        self._analysis_variables = None
+        #
+        # self.analysis_variables = self.script.get('analysis_variables')
         self._log_script()
 
         self.name = self._fc.get('name')
@@ -72,10 +74,14 @@ class FCPacket:
         return ret
 
     def _log_script(self):
-        logger.debug(f'{self!r}: script: {json.dumps(self.script, indent=4)}')
+        if self.script is not None:
+            logger.debug(f'{self!r}: script: {json.dumps(self.script, indent=4)}')
+        else:
+            logger.debug(f'{self!r}: No script(!)')
 
         if self.background is not None:
-            logger.debug(f'{self!r}: background: {json.dumps(self.background, indent=4)}')
+            # logger.debug(f'{self!r}: background: {json.dumps(self.background, indent=4)}')
+            logger.debug(f'{self!r}: background: {self.background}')
         else:
             logger.debug(f'{self!r}: No background')
 
@@ -83,6 +89,20 @@ class FCPacket:
             logger.debug(f'{self!r}: analysis variables: {json.dumps(self.analysis_variables, indent=4)}')
         else:
             logger.debug(f'{self!r}: No analysis variables')
+
+    @property
+    def background(self):
+        if self._background is None:
+            if self.script is not None:
+                self._background = self.script.get('background')
+        return self._background
+
+    @property
+    def analysis_variables(self):
+        if self._analysis_variables is None:
+            if self.script is not None:
+                self._analysis_variables = self.script.get('analysis_variables')
+        return self._analysis_variables
 
 
 class PassThroughArguments:
