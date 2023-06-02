@@ -5,7 +5,7 @@ import json
 import requests
 
 from tagbiopy import logger, DEFAULT_HOST, KUNG, KUNG_CAPACITORS
-from tagbiopy.utils import get_post_headers, log_exception, to_json
+from tagbiopy.utils import get_post_headers, log_exception, to_json, validate
 
 SCHEME = 'https'
 TIMEOUT = None
@@ -67,6 +67,7 @@ class _Request(ABC):
 
         self._user = None
         self._pwd = None
+        self._auth = None
 
         # json.dump and json.dumps argument
         self.indent = None
@@ -117,6 +118,42 @@ class _Request(ABC):
     @property
     def as_dict(self):
         return self.post.json()
+
+    @property
+    def auth(self):
+        if self._auth is None:
+            # If api_key is passed, it looks like: "email:uuid". Therefore, split on ':' and
+            # pass the elements of the list as the username and password in HTTPBasicAuth
+            http_basic_auth = None
+            bearer_auth = None
+            if self.api_key:
+                if self.host != DEFAULT_HOST:
+                    from requests.auth import HTTPBasicAuth
+                    http_basic_auth = HTTPBasicAuth(*self.api_key.split(':'))
+
+            if self.token:
+                from .utils import BearerAuth
+                bearer_auth = BearerAuth(self.token)
+
+            # If both defined, use token. Token always has the highest priority.
+            # Then go one by one
+            if http_basic_auth is not None and bearer_auth is not None:
+                self._auth = bearer_auth
+            elif bearer_auth is not None:
+                self._auth = bearer_auth
+            elif http_basic_auth is not None:
+                self._auth = http_basic_auth
+            else:
+                if self.host != DEFAULT_HOST:
+                    log_exception(
+                        RuntimeError,
+                        message=f'{self!r}: API key or token authentication needed for host {self.host!r}')
+                else:
+                    logger.debug(
+                        f'{self!r}: No authentication provided, no authentication needed with {self.host!r}'
+                    )
+
+        return self._auth
 
     @property
     def data(self):
@@ -174,37 +211,8 @@ class _Request(ABC):
             'timeout': TIMEOUT
         }
 
-        # If api_key is passed, it looks like: "email:uuid". Therefore, split on ':' and
-        # pass the elements of the list as the username and password in HTTPBasicAuth
-        http_basic_auth = None
-        bearer_auth = None
-        if self.api_key:
-            if self.host != DEFAULT_HOST:
-                from requests.auth import HTTPBasicAuth
-                http_basic_auth = HTTPBasicAuth(*self.api_key.split(':'))
-
-        if self.token:
-            from .utils import BearerAuth
-            bearer_auth = BearerAuth(self.token)
-
-        # If both defined, use token. Token always has the highest priority.
-        # Then go one by one
-        auth = None
-        if http_basic_auth is not None and bearer_auth is not None:
-            auth = bearer_auth
-        elif bearer_auth is not None:
-            auth = bearer_auth
-        elif http_basic_auth is not None:
-            auth = http_basic_auth
-        else:
-            if self.host != DEFAULT_HOST:
-                msg = f'{self!r}: API key or token authentication needed for host {self.host!r}'
-                log_exception(RuntimeError, message=msg, terminate=True)
-            else:
-                msg = f'{self!r}: No authentication provided, no authentication needed with {self.host!r}'
-                logger.debug(msg)
-
-        kwargs.update({'auth': auth})
+        if self.auth is not None:
+            kwargs.update({'auth': self.auth})
 
         return kwargs
 
@@ -213,7 +221,7 @@ class _Request(ABC):
         logger.info(f'{self!r}: issue POST request')
         # Note: do not indent json passed to reqests.post
         self.indent = None
-        logger.debug(f'{self!r}: requests.post(url={self.url!r}, {self._post_kwargs})')
+        logger.info(f'{self!r}: requests.post(url={self.url!r})')
         # For logging: set indent to 2 in self.data
         self.indent = 2
         logger.debug(f'{self!r}: _post_kwargs = {self._post_kwargs}')
@@ -222,10 +230,12 @@ class _Request(ABC):
 
         try:
             r = requests.post(self.url, **self._post_kwargs)
-            logger.info(f'{self!r}: headers: {get_post_headers(r)}')
-            msg = f'HTTP {r.request.method} response status code {r.status_code}, content: {r.content}'
-            logger.debug(msg)
+            logger.debug(f'{self!r}: headers: {get_post_headers(r)}')
+            logger.info(
+                f'HTTP {r.request.method} response status code {r.status_code}, content: {r.content[:70]}'
+            )
             r.raise_for_status()
+            return r
         except requests.HTTPError as e:
             log_exception(requests.HTTPError, message=str(e))
 
@@ -321,7 +331,7 @@ class PRequest(_Request):
         return self._protocols[protocol_name]
 
     def prepare_payload(self, request_type):
-        request_type = self._validate_request_type(request_type)
+        request_type = validate('request type', request_type, PRequest.request_types)
         return {'request': request_type}
 
 
@@ -366,18 +376,6 @@ class QRequest(_Request):
         ret += f'\n  Payload method can be any of {QRequest.allowed_methods}'
         return ret
 
-    @staticmethod
-    def _validate_method(s):
-        """
-
-        :param s: str, one of
-        :return:
-        """
-        if s not in QRequest.allowed_methods:
-            msg = f'{s}: invalid method. Choose from {QRequest.allowed_methods}'
-            log_exception(ValueError, msg)
-        return s
-
     @property
     def collections(self):
         if self._collections is None:
@@ -386,37 +384,49 @@ class QRequest(_Request):
         return self._collections
 
     def get_content(self, script=None, analysis_variables=None, background=None) -> bytes:
-        if script is not None:
-            self.payload = script
+        if script is None:
+            method = 'download'
         else:
-            self.payload = self.prepare_payload('download', analysis_variables, background)
+            method = None
+
+        self.payload = self.prepare_payload(
+            method=method,
+            analysis_variables=analysis_variables,
+            background=background,
+            script=script
+        )
+
         return self.post.content
 
     def get_variable_obj(self, analysis_variables):
         self.payload = self.prepare_payload(method='variable', analysis_variables=analysis_variables)
         return self.as_dict
 
-    def prepare_payload(self, method, analysis_variables=None, background=None) -> dict:
+    def prepare_payload(self, method=None, analysis_variables=None, background=None, script=None) -> dict:
         """
-        If 'header_delimiter' is not specified, the default is '='
+        If 'header_delimiter' is not specified, the default is '= '
 
         :param method: str
         :param analysis_variables:
         :param background:
         :return: dict, to be serialized into data param in POST request
         """
-        method = self._validate_method(method)
+        if method is not None:
+            method = validate('method', method, QRequest.allowed_methods)
+
         ret = {
-            'script': {
-                'method': method,
-                'header_delimiter': HEADER_DELIMITER
-            },
+            'header_delimiter': HEADER_DELIMITER,
             'stringify_names': True
         }
-        if analysis_variables is not None:
-            ret['script'].update({'analysis_variables': analysis_variables})
-        if background is not None:
-            ret['script'].update({'background': background})
+        if script is not None:
+            ret.update(script)
+        else:
+            ret.update({'method': method})
+
+            if analysis_variables is not None:
+                ret.update({'analysis_variables': analysis_variables})
+            if background is not None:
+                ret.update({'background': background})
 
         logger.debug(f'{self!r}: payload: {json.dumps(ret, indent=2, default=to_json)}')
 
