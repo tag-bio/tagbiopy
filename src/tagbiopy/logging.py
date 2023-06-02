@@ -20,7 +20,7 @@ def _create_log_file():
     return log_file
 
 
-def initialize_logger(name=LOGGER_NAME, level=logging.DEBUG, fmt=LOG_FORMAT, info=False):
+def initialize_logger(name=LOGGER_NAME, level=logging.INFO, fmt=LOG_FORMAT, info=False):
     """
     Use to set logging to a temp file.
     :param name: str, default global
