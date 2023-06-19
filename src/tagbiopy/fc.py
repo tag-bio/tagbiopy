@@ -517,9 +517,17 @@ class FC:
 
     def where(self, *args):
         """
+        Use to specify background. Used as self.df.select(Categorical, Numeric, etc.).where(*args).run()
         If starts with tuple, background needs to be empty.
+        Example: if using a categorical collection, specify variable name as in
+            self.df.select(Categorical('Cancer Type').where(
+                ('Cancer Type', 'Endometrial Carcinoma'), 'OR',
+                ('Cancer Type', 'Mature B-Cell Neoplasms'), 'OR',
+                ('Cancer Type', 'Cholangiocarcinoma')
+            )
+            .where(('Cancer Type', 'Endometrial Carcinoma'), 'OR', ('Cancer Type', 'Mature B-Cell Neoplasms'))
         :param self:
-        :param args:
+        :param args: tuples and optional strings. Tuples represent categorical variables, strings can be 'OR' or 'AND'
         :return:
         """
 
