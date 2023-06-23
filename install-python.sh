@@ -8,5 +8,3 @@ pip --version
 mamba clean --all -y
 apt-get clean -y
 apt-get autoremove -y
-
-#
