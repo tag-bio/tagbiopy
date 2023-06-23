@@ -16,13 +16,11 @@ echo "*** Building tagbio python library in dev mode"
 #pip install $SCRIPT_DIR/dist/*
 
 conda run -n base pip install -e $SCRIPT_DIR
-# https://github.com/conda/conda-build/issues/4251#issuecomment-1053460542
-#conda run -n base pip install --no-build-isolation --no-deps -e "${SCRIPT_DIR}"
 
 # Use environment to install
 # conda env update -f ${SCRIPT_DIR}/environment.yml
 
-conda install -c conda-forge -y pyyaml yaml tabulate openai langchain[llms]
+conda install -c conda-forge -y pyyaml yaml # tabulate openai langchain[llms]
 
 apt-get clean -y
 apt-get autoremove -y
