@@ -20,7 +20,7 @@ conda run -n base pip install -e $SCRIPT_DIR
 # Use environment to install
 # conda env update -f ${SCRIPT_DIR}/environment.yml
 
-conda install -c conda-forge -y pyyaml yaml # tabulate openai langchain[llms]
+conda install -c conda-forge -y pyyaml yaml tabulate openai langchain[openai]
 
 apt-get clean -y
 apt-get autoremove -y
