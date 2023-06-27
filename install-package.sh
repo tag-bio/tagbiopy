@@ -8,21 +8,15 @@ echo "**** dirname realpath=$(dirname $(realpath $0) )"
 echo "**** SCRIPT_DIR=$SCRIPT_DIR"
 
 echo "*** Building tagbio python library in dev mode"
-#cd "$SCRIPT_DIR"
-#python setup.py sdist
-#
-#echo "*** Installing tagbio python library to $SCRIPT_DIR"
-#pip install -r ./requirements.txt
-#pip install $SCRIPT_DIR/dist/*
-
-conda run -n base pip install -e $SCRIPT_DIR
-# https://github.com/conda/conda-build/issues/4251#issuecomment-1053460542
-#conda run -n base pip install --no-build-isolation --no-deps -e "${SCRIPT_DIR}"
+echo "*** Installing tagbio python library to $SCRIPT_DIR"
 
 # Use environment to install
-# conda env update -f ${SCRIPT_DIR}/environment.yml
 
-conda install -c conda-forge -y pyyaml yaml tabulate openai langchain[llms]
+conda env update -f ${SCRIPT_DIR}/environment.yml
+
+# Tue Jun 27 11:08:42 PDT 2023
+# To use tagbiopy as a package under pip, no dependencies in setup.cfg
+conda run -n base pip install -e $SCRIPT_DIR
 
 apt-get clean -y
 apt-get autoremove -y
