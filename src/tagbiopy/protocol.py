@@ -40,10 +40,18 @@ def load_function(filename):
 
 class FCPacket:
 
-    def __init__(self, filename):
+    def __init__(self, filename, uid=None):
+        """
+        Turn fc-packet.json into an object
+        :param filename: str, path to fc-packet json
+        :param uid: str, default tag.bio entity ID ('Unique ID'). For older data products, specify uid. This will be the
+            index in the returned dataframe.
+        """
         self.filename = filename
         # Serialize the entire packet received from the FC
         self._packet = load_json(self.filename)
+
+        self.uid = uid
 
         # Get the 'fc' part
         self._request = self._packet.get('request')
