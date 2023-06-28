@@ -84,7 +84,8 @@ def content_to_dataframe(content, index=None, **kwargs) -> pd.DataFrame:
         return _df.set_index(index)
     except KeyError as e:
         msg = f'Index {index!r} not found among dataframe columns {_df.columns}'
-        log_exception(exception_class=ValueError, message=msg, cause=e)
+        logger.error(msg)
+        # log_exception(exception_class=ValueError, message=msg, cause=e)
 
 
 def create_temp_file(prefix=None, suffix='.log', fh=False):
