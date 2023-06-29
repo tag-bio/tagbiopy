@@ -62,7 +62,8 @@ def check_list_arg_types(lst: list, arg_type: type, allow_none=True):
 
 
 def content_to_dataframe(content, index=None, **kwargs) -> pd.DataFrame:
-    """Takes POST content and turns it into an indexed dataframe.
+    """Take POST content and turns it into a dataframe. Attempt to set dataframe
+    index to default ('Unique ID'), and if that fails, just return the dataframe
 
     :param content: requests.post.content
     :param index: str,
@@ -83,9 +84,14 @@ def content_to_dataframe(content, index=None, **kwargs) -> pd.DataFrame:
     try:
         return _df.set_index(index)
     except KeyError as e:
-        msg = f'Index {index!r} not found among dataframe columns {_df.columns}'
-        logger.error(msg)
-        # log_exception(exception_class=ValueError, message=msg, cause=e)
+        logger.error(e)
+        logger.error(f'Index {index!r} not found among dataframe columns {_df.columns}')
+    except AttributeError as e:
+        # If we do not get back a pd.DataFrame, raise an exception
+        logger.error(e)
+        raise
+    finally:
+        return _df
 
 
 def create_temp_file(prefix=None, suffix='.log', fh=False):
