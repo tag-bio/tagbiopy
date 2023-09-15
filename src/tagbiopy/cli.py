@@ -8,7 +8,6 @@ from typing import Dict
 from tagbiopy import logger, __version__
 from tagbiopy.protocol import load_function, TagbioData, TagbioResult
 from tagbiopy.utils import create_temp_file, now, print_ts
-from tagbiopy.protocol import RunFunction
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -83,17 +82,19 @@ def run():
     logger.info(msg)
     print_ts(msg, flush=True)
 
-    # if args.user_function.endswith('.py'):
-    #     run_python_function(args)
-    # elif args.user_function.endswith('.ipynb'):
-    #     # run_jupyter_notebook(args)
-    #     pass
-    # else:
-    #     msg = f'Illegal input: {args.user_function!r} should either be a python script or a jupyter notebook.'
-    #     logger.exception(msg)
-    #     raise RuntimeError(msg)
-
-    RunFunction(args)()
+    message = 'Execute {what} from {where!r}'
+    if args.user_function.endswith('.py'):
+        logger.info(message.format(what='user function', where=args.user_function))
+        from tagbiopy.protocol import RunFunction
+        RunFunction(args)()
+    elif args.user_function.endswith('.ipynb'):
+        logger.info(message.format(what='jupyter notebook', where=args.user_function))
+        from tagbiopy.protocol import RunNotebook
+        RunNotebook(args)()
+    else:
+        msg = f'Illegal input: {args.user_function!r} should either be a python script or a jupyter notebook.'
+        logger.exception(msg)
+        raise RuntimeError(msg)
 
     logger.info('Done')
     print_ts('Done', flush=True)
