@@ -1,9 +1,11 @@
 import json
+import os
 import pandas as pd
 
 from tagbiopy import logger
 from tagbiopy.request import QRequest
-from tagbiopy.utils import content_to_dataframe, list_attributes, load_json, log_exception
+from tagbiopy.utils import content_to_dataframe, create_temp_file, list_attributes, load_json, log_exception, now
+from tagbiopy.utils import ipynb_to_html
 
 
 class SDKInput:
@@ -13,6 +15,95 @@ class SDKInput:
         self.input_file = args.user_function
         self.output_type = args.output_type
         self.output_file = args.output_file
+
+
+class RunNotebook(SDKInput):
+    def __init__(self, args):
+        super().__init__(args)
+
+        self._prefix, self._suffix = os.path.splitext(os.path.basename(self.input_file))
+
+        self._first_cell = None
+        self._modified_notebook_file_input = None
+        self._modified_notebook_file_executed = None
+        self.tag_result = TagbioResult(path=self.output_file)
+        logger.info(f'{self.__class__} initiated')
+
+    def __call__(self):
+        self.execute_notebook()
+
+    @property
+    def first_cell(self):
+        if self._first_cell is None:
+            logger.debug(f'{self}: modify first cell')
+            self._first_cell = {
+                "cell_type": "code",
+                "metadata": {
+                    "tags": [
+                        "parameters"
+                    ]
+                },
+                "outputs": [],
+                "source": [
+                    "from tagbiopy.protocol import TagbioData, TagbioResult\n",
+                    f"tag_data = TagbioData({self.fc_packet!r})\n"
+                ]
+            }
+        return self._first_cell
+
+    @property
+    def modified_notebook_file_input(self):
+        if self._modified_notebook_file_input is None:
+
+            # Create temporary file where the notebook contents will be stored
+            self._modified_notebook_file_input = create_temp_file(
+                prefix=f'{self._prefix}-{now(sep="_")}',
+                suffix=self._suffix
+            )
+
+            # Use the input jupyter notebook and modify its content by fixin' the first cell.
+            with open(self._modified_notebook_file_input, 'w') as fh:
+                json.dump(
+                    self._modify_notebook_content(),
+                    fh,
+                    indent=2
+                )
+        return self._modified_notebook_file_input
+
+    @property
+    def modified_notebook_file_executed(self):
+        prefix, suffix = os.path.splitext(os.path.basename(self.input_file))
+        self._modified_notebook_file_executed = self.modified_notebook_file_input.replace(prefix, f'{prefix}_executed')
+        return self._modified_notebook_file_executed
+
+    def _modify_notebook_content(self):
+        logger.debug(f'{self}: load {self.input_file} in memory')
+        with open(self.input_file) as fh:
+            s = json.load(fh)
+
+        # Insert the first cell
+        s['cells'].insert(0, self.first_cell)
+
+        logger.debug(f'{self}: Modified original notebook content by adding the first cell.')
+        return s
+
+    def execute_notebook(self):
+        import papermill as pm
+
+        logger.debug(f'{self}: Execute notebook {self.modified_notebook_file_input!r}')
+        # Execute jupyter notebook
+        _ = pm.execute_notebook(
+            input_path=self.modified_notebook_file_input,
+            output_path=self.modified_notebook_file_executed,
+            kernel_name='python3'
+        )
+
+        # Create report from jupyter notebook
+        logger.debug(f'{self}: Create report from {self.modified_notebook_file_executed}')
+        ipynb_to_html(self.modified_notebook_file_executed, self.tag_result.path)
+
+        logger.info(f'TagResult saved to {self.tag_result.path}')
+        print(f'TagResult saved to {self.tag_result.path}')
 
 
 class RunFunction(SDKInput):
@@ -61,6 +152,24 @@ class RunFunction(SDKInput):
         if self._user_function is None:
             self._user_function = extract_user_function(self.input_file)
         return self._user_function
+
+
+class Run:
+
+    def __init__(self, args):
+        message = 'Execute {what} from {where!r}'
+        if args.user_function.endswith('.py'):
+            logger.info(message.format(what='user function', where=args.user_function))
+            self._class = RunFunction(args)
+        elif args.user_function.endswith('.ipynb'):
+            logger.info(message.format(what='jupyter notebook', where=args.user_function))
+            self._class = RunNotebook(args)
+        else:
+            msg = f'Invalid input: {args.user_function!r}. Provide either a .py or .ipynb'
+            log_exception(RuntimeError, msg)
+
+    def __call__(self):
+        return self._class.__call__()
 
 
 def extract_user_function(filename):
