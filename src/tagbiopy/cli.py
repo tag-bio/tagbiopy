@@ -8,6 +8,7 @@ from typing import Dict
 from tagbiopy import logger, __version__
 from tagbiopy.protocol import load_function, TagbioData, TagbioResult
 from tagbiopy.utils import create_temp_file, now, print_ts
+from tagbiopy.protocol import Run
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -43,20 +44,18 @@ def set_extension_and_path(args: argparse.Namespace) -> (str, str):
     return extension, path
 
 
-def run():
-    print_ts(f'tagbiopy {__version__}', flush=True)
-    args = parse_arguments()
+def run_jupyter_notebook(args):
+    pass
 
-    msg = f'Python command line arguments:\n{json.dumps(vars(args), indent=2)}'
-    logger.info(msg)
-    print_ts(msg, flush=True)
 
+def run_python_function(args):
     # Initialize tag_data
     logger.info('Initialize TagbioData')
     tag_data = TagbioData(args.fc_data)
 
     logger.debug(f'Check fc_packet: {tag_data.fc_packet = }')
-    logger.info(f'Check TagbioData.df')
+
+    logger.info(f'Check TagbioData.df ... ')
     if tag_data.df is None:
         logger.info('No data requested')
     else:
@@ -67,12 +66,24 @@ def run():
     extension, path = set_extension_and_path(args)
     tag_result = TagbioResult(extension=extension, path=args.output_file)
 
-    # Load user function
-    logger.info('Load user function')
-    user_function = load_function(args.user_function)
+    # Load user function from python script
+    logger.info(f'Load user function from {args.user_function}')
+    user_function = load_function(args)
 
-    logger.info('Execute user function')
+    # Execute user function
+    logger.info(f'Execute user function {user_function!r}')
     user_function(tag_data, tag_result)
+
+
+def run():
+    print_ts(f'tagbiopy {__version__}', flush=True)
+    args = parse_arguments()
+
+    msg = f'Python command line arguments:\n{json.dumps(vars(args), indent=2)}'
+    logger.info(msg)
+    print_ts(msg, flush=True)
+
+    Run(args)()
 
     logger.info('Done')
     print_ts('Done', flush=True)
