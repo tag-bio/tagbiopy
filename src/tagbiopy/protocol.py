@@ -6,18 +6,7 @@ from tagbiopy.request import QRequest
 from tagbiopy.utils import content_to_dataframe, list_attributes, load_json, log_exception
 
 
-def flatten_single_element_list(_dict):
-    ret = {}
-    for k, v in _dict.items():
-        if isinstance(v, list):
-            if len(v) == 1:
-                ret[k] = v[0]
-            else:
-                ret[k] = [w for w in v]
-    return ret
-
-
-def load_function(filename):
+def extract_user_function(filename):
     import importlib.machinery
     import inspect
 
@@ -36,6 +25,27 @@ def load_function(filename):
     message += '\nPlease create a function with (TagbioData, TagbioResult) arguments.'
 
     log_exception(RuntimeError, message)
+
+
+def flatten_single_element_list(_dict):
+    ret = {}
+    for k, v in _dict.items():
+        if isinstance(v, list):
+            if len(v) == 1:
+                ret[k] = v[0]
+            else:
+                ret[k] = [w for w in v]
+    return ret
+
+
+def load_function(args):
+    filename = args.user_function
+    if filename.endswith('.py'):
+        return extract_user_function(filename)
+    else:
+        msg = f'Illegal user_function {filename!r}: should be a python file'
+        logger.exception(msg)
+        raise RuntimeError(msg)
 
 
 class FCPacket:
