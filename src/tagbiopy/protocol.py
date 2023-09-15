@@ -6,6 +6,63 @@ from tagbiopy.request import QRequest
 from tagbiopy.utils import content_to_dataframe, list_attributes, load_json, log_exception
 
 
+class SDKInput:
+
+    def __init__(self, args):
+        self.fc_packet = args.fc_data
+        self.input_file = args.user_function
+        self.output_type = args.output_type
+        self.output_file = args.output_file
+
+
+class RunFunction(SDKInput):
+
+    def __init__(self, args):
+        super().__init__(args)
+
+        self._tag_data = None
+        self._tag_result = None
+        self._user_function = None
+
+    def __call__(self):
+        self.user_function(
+            tag_data=self.tag_data,
+            tag_result=self.tag_result
+        )
+
+    @property
+    def tag_data(self):
+        if self._tag_data is None:
+            logger.info('Initialize TagbioData')
+            self._tag_data = TagbioData(self.fc_packet)
+
+            logger.info(f'Check TagbioData.df ... ')
+            if self._tag_data.df is None:
+                logger.info('No data requested')
+            else:
+                logger.info(f'columns: {self._tag_data.df.columns}')
+
+        return self._tag_data
+
+    @property
+    def tag_result(self):
+        if self._tag_result is None:
+            # Initialize tag_result. If output path is a temp file
+            logger.info('Initialize TagbioResult')
+            self._tag_result = TagbioResult(
+                extension=self.output_type,
+                path=self.output_file
+            )
+            logger.debug(f'tag_result: {self._tag_result}')
+        return self._tag_result
+
+    @property
+    def user_function(self):
+        if self._user_function is None:
+            self._user_function = extract_user_function(self.input_file)
+        return self._user_function
+
+
 def extract_user_function(filename):
     import importlib.machinery
     import inspect
@@ -20,9 +77,9 @@ def extract_user_function(filename):
     message = 'Invalid function'
     if len(_fs) > 1:
         message += 's'
-    message += f' in {filename}'
+    message += f' in {filename!r}:'
     message += '\nFound {}'.format(', '.join([v[0] for v in _fs]))
-    message += '\nPlease create a function with (TagbioData, TagbioResult) arguments.'
+    message += '\nPlease create a function with (tag_data: TagbioData, tag_result: TagbioResult) arguments.'
 
     log_exception(RuntimeError, message)
 
@@ -42,10 +99,12 @@ def load_function(args):
     filename = args.user_function
     if filename.endswith('.py'):
         return extract_user_function(filename)
+    elif filename.endswith('.ipynb'):
+        fc_packet = args.fc_data
+        pass
     else:
-        msg = f'Illegal user_function {filename!r}: should be a python file'
-        logger.exception(msg)
-        raise RuntimeError(msg)
+        msg = f'Illegal user_function {filename!r}. Should be either a .py or .ipynb file.'
+        log_exception(RuntimeError, msg)
 
 
 class FCPacket:
