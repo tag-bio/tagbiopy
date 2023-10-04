@@ -6,7 +6,6 @@ dependencies:
   - pip
   - pandas=2.0.*
   - plotly=5.15.*
-  - pytypes=1.0b10
   - requests=2.31.*
   - inflection=0.5.*
   - pyyaml=6.0
