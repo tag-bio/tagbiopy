@@ -1,4 +1,4 @@
-.git/
 .gitignore
+.gitkeep
 Dockerfile
 .dockerignore
