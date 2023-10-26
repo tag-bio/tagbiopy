@@ -2,6 +2,8 @@
 set -ex
 
 
+export SETUPTOOLS_SCM_PRETEND_VERSION=0.8
+
 echo "*** Building tagbio python library in dev mode in ${TAGBIO_PY}"
 
 # Use pip to install this SDK only. For dependencies use conda install
