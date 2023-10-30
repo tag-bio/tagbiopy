@@ -1,43 +1,43 @@
 stages:
-- name: "Generate VERSION.txt"
-  steps:
-  - runScriptConfig:
-      image: alpine/git
-      shellScript: sh -c 'git config --global --add safe.directory $PWD && git describe --tags --always > ./VERSION.txt'
-- name: build
-  steps:
-  - publishImageConfig:
-      dockerfilePath: ./Dockerfile
-      buildContext: .
-      tag: tagbiopy:branch-${CICD_GIT_BRANCH}
-      pushRemote: true
-      registry: platform-write-registry.dev.tag.bio
-- name: trigger-downstream-pipelines
-  steps:
-  - runScriptConfig:
-      image: platform-registry.dev.tag.bio/tagbio-ci-pipeline:branch-${CICD_GIT_BRANCH}
-      shellScript: $TAGBIO_CI_PIPELINE_DIR/trigger-pipelines.js
-    env:
-      TRIGGER_PIPELINES_BRANCH: ${CICD_GIT_BRANCH}
-      TRIGGER_PIPELINES_REPO_FILTER: "/tagbio-fc-jars.git$"
-    envFrom:
-    - sourceName: rancher-api
-      sourceKey: RANCHER_ACCESS_KEY
-    - sourceName: rancher-api
-      sourceKey: RANCHER_BASE_URL
-    - sourceName: rancher-api
-      sourceKey: RANCHER_CLUSTER_ID
-    - sourceName: rancher-api
-      sourceKey: RANCHER_PROJECT_ID
-    - sourceName: rancher-api
-      sourceKey: RANCHER_SECRET_KEY
+  - name: get-version
+    steps:
+    - runScriptConfig:
+        image: alpine/git
+        shellScript: sh -c 'git config --global --add safe.directory $PWD && git describe --tags --always > ./VERSION.txt'
+  - name: build
+    steps:
+    - publishImageConfig:
+        dockerfilePath: ./Dockerfile
+        buildContext: .
+        tag: tagbiopy:branch-${CICD_GIT_BRANCH}
+        pushRemote: true
+        registry: platform-write-registry.dev.tag.bio
+  - name: trigger-downstream-pipelines
+    steps:
+    - runScriptConfig:
+        image: platform-registry.dev.tag.bio/tagbio-ci-pipeline:branch-${CICD_GIT_BRANCH}
+        shellScript: $TAGBIO_CI_PIPELINE_DIR/trigger-pipelines.js
+      env:
+        TRIGGER_PIPELINES_BRANCH: ${CICD_GIT_BRANCH}
+        TRIGGER_PIPELINES_REPO_FILTER: "/tagbio-fc-jars.git$"
+      envFrom:
+      - sourceName: rancher-api
+        sourceKey: RANCHER_ACCESS_KEY
+      - sourceName: rancher-api
+        sourceKey: RANCHER_BASE_URL
+      - sourceName: rancher-api
+        sourceKey: RANCHER_CLUSTER_ID
+      - sourceName: rancher-api
+        sourceKey: RANCHER_PROJECT_ID
+      - sourceName: rancher-api
+        sourceKey: RANCHER_SECRET_KEY
 branch:
   include:
-  - master
-  - stage
+    - master
+    - stage
 timeout: 60
 notification:
   recipients:
-  - notifier: c-ptwnq:n-h4lq7
+    - notifier: c-ptwnq:n-h4lq7
   condition:
-  - Failed
+    - Failed
