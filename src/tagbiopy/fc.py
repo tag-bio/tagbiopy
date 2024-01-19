@@ -304,6 +304,12 @@ class FC(QRequest):
             msg = f'{collection!r} not found among {collection.data_function_type} collections'
             log_exception(ValueError, msg, cause=e)
 
+    def get_data_timestamp(self):
+        return self.s_request.data_timestamp
+
+    def get_start_time(self):
+        return self.s_request.start_time
+
     def list_collections(self, data_function_type):
         try:
             ret = [v for v in self._collections[data_function_type]]
@@ -314,6 +320,9 @@ class FC(QRequest):
             logger.info(msg, exc_info=True)
             raise ValueError(msg)
         return ret
+
+    def list_protocols(self):
+        return self.p_request.protocols
 
     def list_variables(self, collection: Union[fundamentals.COLLECTION_DATA_FUNCTION_TYPES], as_generator=False):
         c = self.get_collection(collection)
