@@ -1,13 +1,12 @@
 import json
-import os
 
 from typing import List, Union, Optional
 
 import pandas as pd
 
-from tagbiopy import logger, DEFAULT_HOST
+from tagbiopy import logger
 from tagbiopy import fundamentals
-from tagbiopy.request import QRequest, SRequest
+from tagbiopy.request import QRequest, PRequest, SRequest
 from tagbiopy.utils import check_arg_type, content_to_dataframe, extract_data_reference_type, log_exception
 from .where_clause import check_boolean, set_collection, update
 
@@ -16,30 +15,8 @@ CollectionDataFunctionTypes = Union[fundamentals.COLLECTION_DATA_FUNCTION_TYPES]
 CollectionTypes = Union[fundamentals.COLLECTION_TYPES]
 AllCollectionTypes = Union[CollectionDataFunctionTypes, CollectionTypes]
 
-TAGBIO_CONFIG_FILE = '.tagbio.json'
-TAGBIO_HOST = 'TAGBIO_HOST'
-TAGBIO_API_KEY = 'TAGBIO_API_KEY'
-TAGBIO_BASE_URL = 'TAGBIO_BASE_URL'
 
-
-def setup_local_env():
-    try:
-        path = os.path.join(os.getenv('HOME'), TAGBIO_CONFIG_FILE)
-        with open(path) as fh:
-            env = json.load(fh)
-    except FileNotFoundError as e:
-        logger.debug(f'Local env not loaded: {e}')
-        env = {}
-
-    return dict(
-        HOST=os.environ.get('TAGBIO_HOST', env.get('TAGBIO_HOST')),
-        API_KEY=os.environ.get('TAGBIO_API_KEY', env.get('TAGBIO_API_KEY')),
-        BASE_URL=os.environ.get('TAGBIO_BASE_URL', env.get('TAGBIO_BASE_URL')),
-        DEFAULT_HOST=os.environ.get('DEFAULT_HOST', env.get('DEFAULT_HOST', DEFAULT_HOST))
-    )
-
-
-class FC:
+class FC(QRequest):
     """Handles access to the back end and the data. Instantiated with the hostname.
 
     Properties:
@@ -64,22 +41,14 @@ class FC:
 
     """
 
-    def __init__(self, host: str = None, api_key: str = None,
-                 base_url: str = None, name: str = None) -> None:
+    def __init__(self, fc_name: str = None, host: str = None, api_key: str = None,
+                 token: str = None) -> None:
         logger.info(f'{self.__class__}: Initialize')
-
-        # Set up local env for authentication
-        self.env = setup_local_env()
-
-        # Use properties to set variables
-        self._host = host
-        self._base_url = base_url
-        self._api_key = api_key
-        self.name = name
+        super().__init__(fc_name, host, api_key, token)
 
         # Private, to handle API '/q' requests with methods: "collection",
         # "variable" and "download".
-        self._q_request = None
+        self._p_request = None
         self._s_request = None
 
         self._entity_collection = None
@@ -93,14 +62,6 @@ class FC:
         self.__collections = {}
 
         logger.info(f'{self!r}: Initialized')
-
-    def __repr__(self):
-        args = []
-        if self.host is not None:
-            args.append(f'host={self.host!r}')
-        if self.api_key is not None:
-            args.append(f'api_key={self.api_key!r}')
-        return f'{self.__class__.__name__}({", ".join(args)})'
 
     def _prepare(self, variables: VariableBlockTypes) -> list:
         """Prepare analysis variables by including the entity collection and sorting out
@@ -133,9 +94,8 @@ class FC:
 
         if not any(self.__collections[k] for k in self.__collections):
             logger.info(f'{self!r}: Initializing _collections: parsing')
-            collections = self.q_request.collections
             try:
-                meta = collections['meta']
+                meta = self.q_collections['meta']
             except KeyError as e:
                 logger.debug('Could not find "meta" attribute in collections')
                 logger.info(e, exc_info=True)
@@ -152,7 +112,7 @@ class FC:
             self.__collections['entity'] = entity_collection
             logger.debug(f"{self!r}: entity {self.__collections['entity']!r}")
 
-            results = collections['results']
+            results = self.q_collections['results']
             logger.info(f'{self!r}: {len(results)} collections obtained')
             count = 0
             for i, kw in enumerate(results):
@@ -182,20 +142,8 @@ class FC:
         return self.__collections
 
     @property
-    def api_key(self) -> str:
-        if self._api_key is None:
-            self._api_key = self.env.get('API_KEY')
-        return self._api_key
-
-    @property
     def available_collection_types(self) -> set:
         return set(self._collections.keys()).intersection(fundamentals.STR_COLLECTION_DATA_FUNCTION_TYPES)
-
-    @property
-    def base_url(self) -> str:
-        if self._base_url is None:
-            self._base_url = self.env.get('API_KEY')
-        return self._base_url
 
     @property
     def df(self):
@@ -221,17 +169,6 @@ class FC:
         return self._entity_collection
 
     @property
-    def host(self):
-        if self._host is None:
-            self._host = self.env.get('HOST')
-            if self._host is None or self._host == '':
-                if self.base_url is not None and self.name is not None:
-                    self._host = f'{self.base_url}/fc-svc/{self.name}'
-                else:
-                    self._host = self.env.get('DEFAULT_HOST')
-        return self._host
-
-    @property
     def info(self) -> dict:
         """Get provenance and version info for the FC.
 
@@ -253,15 +190,25 @@ class FC:
         return self.entity_collection.collection_size
 
     @property
-    def q_request(self):
-        if self._q_request is None:
-            self._q_request = QRequest(self.host, self.api_key)
-        return self._q_request
+    def p_request(self):
+        if self._p_request is None:
+            self._p_request = PRequest(
+                host=self.host,
+                fc_name=self.fc_name,
+                api_key=self.api_key,
+                token=self.token
+            )
+        return self._p_request
 
     @property
     def s_request(self):
         if self._s_request is None:
-            self._s_request = SRequest(self.host, self.api_key)
+            self._s_request = SRequest(
+                host=self.host,
+                fc_name=self.fc_name,
+                api_key=self.api_key,
+                token=self.token
+            )
         return self._s_request
 
     @property
@@ -357,6 +304,12 @@ class FC:
             msg = f'{collection!r} not found among {collection.data_function_type} collections'
             log_exception(ValueError, msg, cause=e)
 
+    def get_data_timestamp(self):
+        return self.s_request.data_timestamp
+
+    def get_start_time(self):
+        return self.s_request.start_time
+
     def list_collections(self, data_function_type):
         try:
             ret = [v for v in self._collections[data_function_type]]
@@ -368,12 +321,15 @@ class FC:
             raise ValueError(msg)
         return ret
 
+    def list_protocols(self):
+        return self.p_request.protocols
+
     def list_variables(self, collection: Union[fundamentals.COLLECTION_DATA_FUNCTION_TYPES], as_generator=False):
         c = self.get_collection(collection)
 
         if len(c) == 0:
             logger.info(f'{c!r}: No variables assigned yet, parsing')
-            variables_obj = self.q_request.get_variable_obj(analysis_variables=collection)
+            variables_obj = self.get_variable_obj(analysis_variables=collection)
             c.add_variables(variables_obj)
         logger.info(f'{c!r}: {len(c)} variables available')
 
@@ -411,7 +367,8 @@ class FC:
                 for collection_type in self.available_collection_types:
                     if arg in self._collections[collection_type]:
                         self.analysis_variables.append(
-                            fundamentals.variable_block_factory(data_function_type=collection_type)(collection, variable)
+                            fundamentals.variable_block_factory(
+                                data_function_type=collection_type)(collection, variable)
                         )
                         break
                     else:
@@ -419,7 +376,7 @@ class FC:
                         msg += f' Not found among {fundamentals.COLLECTION_DATA_FUNCTION_TYPES}.'
                     log_exception(TypeError, msg)
             else:
-                msg = f'{i}: arg {arg} should be a string, a touple or one of '
+                msg = f'{i}: arg {arg} should be a string, a tuple or one of '
                 msg += fundamentals.COLLECTION_DATA_FUNCTION_TYPES
                 msg += '.'
 
@@ -492,7 +449,7 @@ class FC:
         if include_background:
             _analysis_variables.append(background)
 
-        content = self.q_request.get_content(analysis_variables=_analysis_variables, background=background)
+        content = self.get_content(analysis_variables=_analysis_variables, background=background)
 
         ret = content_to_dataframe(content=content, **kwargs)
         logger.info(f'{self!r}: dataframe shape {ret.shape}')
