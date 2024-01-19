@@ -17,7 +17,7 @@ HOST_CONFIG_JSON = os.path.join(os.environ['HOME'], '.tagbio.json')
 HOST_CONFIG_YAML = os.path.join(os.environ['HOME'], '.tagbio.yaml')
 
 
-class TagBioRequest(ABC):
+class _Request(ABC):
     """
     The Parent class is a template class for all fc requests. Requires a host and an API method.
 
@@ -75,8 +75,16 @@ class TagBioRequest(ABC):
         logger.info(f'{self!r}: Initialized')
 
     def __repr__(self):
+        args = [f'host={self.host!r}']
+        if self.fc_name:
+            args.append(f'fc_name={self.fc_name!r}')
+        if self.api_key:
+            args.append('api_key=PROVIDED')
+        if self.token:
+            args.append('token=PROVIDED')
+
         str_repr = f'{self.__class__.__name__}('
-        str_repr += ', '.join([f'{v!r}' for v in [self.host, self.api_key] if v])
+        str_repr += ', '.join([f'{v!r}' for v in args])
         str_repr += ')'
         return str_repr
 
@@ -168,6 +176,7 @@ class TagBioRequest(ABC):
 
         :return: str, host name
         """
+
         if self._host is None:
             if os.environ.get('TAGBIO_HOST_URL') is not None:
                 s = os.environ
@@ -190,9 +199,12 @@ class TagBioRequest(ABC):
                 self._host = DEFAULT_HOST
             else:
                 self._host = f'{self._host}/{KUNG}/{self.fc_name}'
-        else:
-            if KUNG not in self._host:
+
+            if self._host != DEFAULT_HOST and KUNG not in self._host:
                 self._host = f'{self._host}/{KUNG}/{self.fc_name}'
+
+            if self.fc_name is None:
+                self._host = DEFAULT_HOST
             
         return self._host
 
@@ -243,8 +255,8 @@ class TagBioRequest(ABC):
             )
             r.raise_for_status()
             return r
-        except requests.HTTPError as e:
-            log_exception(requests.HTTPError, message=str(e))
+        except (requests.HTTPError, requests.ConnectionError) as e:
+            log_exception(e, message=str(e))
 
     @abstractmethod
     def prepare_payload(self, *args, **kwargs):
@@ -271,7 +283,7 @@ class TagBioRequest(ABC):
         return self._user
 
 
-class SRequest(TagBioRequest):
+class SRequest(_Request):
     method_ = '/s'
 
     def __init__(self, host: str = None, fc_name: str = None, api_key: str = None,
@@ -299,7 +311,7 @@ class SRequest(TagBioRequest):
         return {}
 
 
-class PRequest(TagBioRequest):
+class PRequest(_Request):
     method_ = '/p'
     request_types = ('get_tags', 'get_protocols')
 
@@ -342,7 +354,7 @@ class PRequest(TagBioRequest):
         return {'request': request_type}
 
 
-class QRequest(TagBioRequest):
+class QRequest(_Request):
     """Handles '/q' API requests.
 
     The Parent class is a template class for all fc requests. Requires a host and an API method.
@@ -376,7 +388,7 @@ class QRequest(TagBioRequest):
 
         # Initialize collection property. No need for summary (not used)
         # and variable (may take too long to return)
-        self._collections = None
+        self._q_collections = None
 
     def __str__(self):
         ret = super().__str__()
@@ -384,11 +396,11 @@ class QRequest(TagBioRequest):
         return ret
 
     @property
-    def collections(self):
-        if self._collections is None:
+    def q_collections(self):
+        if self._q_collections is None:
             self.payload = self.prepare_payload(method='collection')
-            self._collections = self.as_dict
-        return self._collections
+            self._q_collections = self.as_dict
+        return self._q_collections
 
     def get_content(self, script=None, analysis_variables=None, background=None) -> bytes:
         if script is None:
@@ -416,6 +428,7 @@ class QRequest(TagBioRequest):
         :param method: str
         :param analysis_variables:
         :param background:
+        :param script:
         :return: dict, to be serialized into data param in POST request
         """
         if method is not None:
