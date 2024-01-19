@@ -17,6 +17,19 @@ HOST_CONFIG_JSON = os.path.join(os.environ['HOME'], '.tagbio.json')
 HOST_CONFIG_YAML = os.path.join(os.environ['HOME'], '.tagbio.yaml')
 
 
+def _get_env_setting(var, default_value=None):
+    if os.path.exists(HOST_CONFIG_JSON):
+        from tagbiopy.utils import load_json
+        s = load_json(HOST_CONFIG_JSON)
+    elif os.path.exists(HOST_CONFIG_YAML):
+        from tagbiopy.utils import load_yaml
+        s = load_yaml(HOST_CONFIG_YAML)
+    else:
+        s = os.environ
+
+    return s.get(var, default_value)
+
+
 class _Request(ABC):
     """
     The Parent class is a template class for all fc requests. Requires a host and an API method.
@@ -45,7 +58,7 @@ class _Request(ABC):
     """
     method_ = None
 
-    def __init__(self, host: str = None, fc_name: str = None, api_key: str = None,
+    def __init__(self, fc_name: str = None, host: str = None, api_key: str = None,
                  token: str = None) -> None:
         """
 
@@ -55,9 +68,9 @@ class _Request(ABC):
         :param token: str, bearer token, found in request.auth
         """
         logger.info(f'{self.__class__}: Initialize')
-        self._host = host
         self.fc_name = fc_name
-        self._api_key = api_key
+        self.host = self._set_host(host)
+        self.api_key = self._set_api_key(api_key)
         self.token = token
 
         self._api_method = None
@@ -88,26 +101,33 @@ class _Request(ABC):
         str_repr += ')'
         return str_repr
 
-    @property
-    def api_key(self):
-        if self._api_key is None:
-            if os.environ.get('TAGBIO_API_KEY') is not None:
-                self._api_key = os.environ.get('TAGBIO_API_KEY')
+    def _set_host(self, host):
+        if host is None:
+            host = _get_env_setting('TAGBIO_HOST_URL', default_value=DEFAULT_HOST)
+            if host == DEFAULT_HOST:
+                if self.fc_name is not None:
+                    logger.debug(f'Set fc_name from {self.fc_name} to None on {host}')
+                    self.fc_name = None
+        else:
+            if SCHEME not in host:
+                host = f'{SCHEME}://{host}'
+            if KUNG not in host:
+                host = f'{host}/{KUNG}'
+            if self.fc_name not in host:
+                host = f'{host}/{self.fc_name}'
 
-            elif os.path.exists(HOST_CONFIG_YAML):
-                from tagbiopy.utils import load_yaml
-                s = load_yaml(HOST_CONFIG_YAML, catch_error=False)
-                self._api_key = s.get('TAGBIO_API_KEY')
+        return host
 
-            elif os.path.exists(HOST_CONFIG_JSON):
-                from tagbiopy.utils import load_json
-                s = load_json(HOST_CONFIG_JSON, catch_error=False)
-                self._api_key = s.get('TAGBIO_API_KEY')
+    def _set_api_key(self, api_key):
+        if self.host == DEFAULT_HOST:
+            # We don't need an API key on localhost
+            logger.debug(f'API key not needed on {self.host}')
+            return
 
-            else:
-                pass
+        if api_key is None:
+            api_key = _get_env_setting('TAGBIO_API_KEY')
 
-        return self._api_key
+        return api_key
 
     @property
     def api_method(self):
@@ -166,47 +186,6 @@ class _Request(ABC):
     @property
     def data(self):
         return json.dumps(self.payload, indent=self.indent, default=to_json)
-
-    @property
-    def host(self):
-        """
-        Find host in TAGBIO_HOST_URL environment variable.
-        If that does not work, examine HOST_CONFIG_YAML or HOST_CONFIG_JSON.
-        If those do not work, use DEFAULT_HOST.
-
-        :return: str, host name
-        """
-
-        if self._host is None:
-            if os.environ.get('TAGBIO_HOST_URL') is not None:
-                s = os.environ
-
-            elif os.path.exists(HOST_CONFIG_YAML):
-                from tagbiopy.utils import load_yaml
-                s = load_yaml(HOST_CONFIG_YAML)
-
-            elif os.path.exists(HOST_CONFIG_JSON):
-                from tagbiopy.utils import load_json
-                s = load_json(HOST_CONFIG_JSON)
-
-            else:
-                s = {}
-
-            self._host = s.get('TAGBIO_HOST_URL')
-
-            # Still None? Set to default
-            if self._host is None:
-                self._host = DEFAULT_HOST
-            else:
-                self._host = f'{self._host}/{KUNG}/{self.fc_name}'
-
-            if self._host != DEFAULT_HOST and KUNG not in self._host:
-                self._host = f'{self._host}/{KUNG}/{self.fc_name}'
-
-            if self.fc_name is None:
-                self._host = DEFAULT_HOST
-            
-        return self._host
 
     @property
     def payload(self):
@@ -286,9 +265,9 @@ class _Request(ABC):
 class SRequest(_Request):
     method_ = '/s'
 
-    def __init__(self, host: str = None, fc_name: str = None, api_key: str = None,
+    def __init__(self, fc_name: str = None, host: str = None, api_key: str = None,
                  token: str = None) -> None:
-        super().__init__(host, fc_name, api_key, token)
+        super().__init__(fc_name, host, api_key, token)
 
         self.payload = self.prepare_payload()
 
@@ -315,9 +294,9 @@ class PRequest(_Request):
     method_ = '/p'
     request_types = ('get_tags', 'get_protocols')
 
-    def __init__(self, host: str = None, fc_name: str = None, api_key: str = None,
+    def __init__(self, fc_name: str = None, host: str = None, api_key: str = None,
                  token: str = None) -> None:
-        super().__init__(host, fc_name, api_key, token)
+        super().__init__(fc_name, host, api_key, token)
         self._protocols = None
 
     @staticmethod
@@ -382,9 +361,9 @@ class QRequest(_Request):
     method_ = '/q'
     allowed_methods = ('collection', 'download', 'summary', 'variable')
 
-    def __init__(self, host: str = None, fc_name: str = None, api_key: str = None,
+    def __init__(self, fc_name: str = None, host: str = None, api_key: str = None,
                  token: str = None) -> None:
-        super().__init__(host, fc_name, api_key, token)
+        super().__init__(fc_name, host, api_key, token)
 
         # Initialize collection property. No need for summary (not used)
         # and variable (may take too long to return)
