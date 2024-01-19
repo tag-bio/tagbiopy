@@ -4,7 +4,7 @@ import json
 
 import requests
 
-from tagbiopy import logger, DEFAULT_HOST, KUNG, KUNG_CAPACITORS
+from tagbiopy import logger, DEFAULT_HOST, KUNG
 from tagbiopy.utils import get_post_headers, log_exception, to_json, validate
 
 SCHEME = 'https'
@@ -17,7 +17,7 @@ HOST_CONFIG_JSON = os.path.join(os.environ['HOME'], '.tagbio.json')
 HOST_CONFIG_YAML = os.path.join(os.environ['HOME'], '.tagbio.yaml')
 
 
-class _Request(ABC):
+class TagBioRequest(ABC):
     """
     The Parent class is a template class for all fc requests. Requires a host and an API method.
 
@@ -163,7 +163,9 @@ class _Request(ABC):
     def host(self):
         """
         Find host in TAGBIO_HOST_URL environment variable.
-        If that does not work, examine HOST_CONFIG_
+        If that does not work, examine HOST_CONFIG_YAML or HOST_CONFIG_JSON.
+        If those do not work, use DEFAULT_HOST.
+
         :return: str, host name
         """
         if self._host is None:
@@ -186,7 +188,12 @@ class _Request(ABC):
             # Still None? Set to default
             if self._host is None:
                 self._host = DEFAULT_HOST
-
+            else:
+                self._host = f'{self._host}/{KUNG}/{self.fc_name}'
+        else:
+            if KUNG not in self._host:
+                self._host = f'{self._host}/{KUNG}/{self.fc_name}'
+            
         return self._host
 
     @property
@@ -264,7 +271,7 @@ class _Request(ABC):
         return self._user
 
 
-class SRequest(_Request):
+class SRequest(TagBioRequest):
     method_ = '/s'
 
     def __init__(self, host: str = None, fc_name: str = None, api_key: str = None,
@@ -292,7 +299,7 @@ class SRequest(_Request):
         return {}
 
 
-class PRequest(_Request):
+class PRequest(TagBioRequest):
     method_ = '/p'
     request_types = ('get_tags', 'get_protocols')
 
@@ -335,7 +342,7 @@ class PRequest(_Request):
         return {'request': request_type}
 
 
-class QRequest(_Request):
+class QRequest(TagBioRequest):
     """Handles '/q' API requests.
 
     The Parent class is a template class for all fc requests. Requires a host and an API method.
