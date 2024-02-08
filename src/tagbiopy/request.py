@@ -73,6 +73,12 @@ class _Request(ABC):
         self.api_key = self._set_api_key(api_key)
         self.token = token
 
+        # Reset for localhost
+        if self.host == DEFAULT_HOST:
+            self.fc_name = None
+            self.api_key = None
+            self.token = None
+
         self._api_method = None
         self._auth = None
         self._url = None
@@ -109,12 +115,13 @@ class _Request(ABC):
                     logger.debug(f'Set fc_name from {self.fc_name} to None on {host}')
                     self.fc_name = None
         else:
-            if SCHEME not in host:
-                host = f'{SCHEME}://{host}'
-            if KUNG not in host:
-                host = f'{host}/{KUNG}'
-            if self.fc_name not in host:
-                host = f'{host}/{self.fc_name}'
+            if host != DEFAULT_HOST:
+                if SCHEME not in host:
+                    host = f'{SCHEME}://{host}'
+                if KUNG not in host:
+                    host = f'{host}/{KUNG}'
+                if self.fc_name not in host:
+                    host = f'{host}/{self.fc_name}'
 
         return host
 
