@@ -477,3 +477,9 @@ class TagbioResult:
             float_format = '%.4f'
             self.df.to_csv(path, float_format=float_format)
             logger.info('Stored')
+
+        elif what == 'html':
+            content = kwargs['content']
+            with open(self.path, 'w') as fh:
+                fh.write(content)
+            logger.info(f'Content {content!r} stored to {self.path}')
