@@ -492,8 +492,7 @@ class TagbioResult:
             logger.debug(f'{self} pd.DataFrame stored to {self.path}')
 
         else:
-
-            print(f'tagbiopy content: {self.content!r}')
+            
             if self.content is None:
                 raise RuntimeError(f'{self}: No content created')
 
