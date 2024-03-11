@@ -1,0 +1,43 @@
+[tool.poetry]
+name = "tagbiopy"
+version = "0.9.3a"
+description = "Python SDK and API Wrapper for Tag.bio Integration"
+authors = ["Damir Herman <support@tag.bio>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://www.tag.bio"
+repository = "https://bitbucket.org/cloudfolks/tagbiopy"
+documentation = "https://code.tag.bio"
+classifiers = [
+  "Development Status :: 3 - Alpha",  
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python"
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pandas = "^2.0"
+plotly = "^5.15"
+requests = "^2.31"
+inflection = "^0.5"
+pyyaml = "^6.0"
+papermill = "^2.3"
+ipykernel = "^6.23"
+
+[tool.poetry.group.dev.dependencies]
+importlib-metadata = "^7.0.1"
+argparse = "^1.4.0"
+typing = "^3.10.0.0"
+inflection = "^0.5.1"
+logging = "^0.4.9.6"
+numpy = "^1.26.4"
+matplotlib = "^3.8.3"
+requests = "^2.31.0"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.0.0"
+requests-mock = "^1.11.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -7,25 +7,19 @@
 *.o
 *.so
 
-# venv
-venv/
-
 # Packages #
 ############
-# it's better to unpack these files and commit the raw source
-# git has its own built in compression methods
 *.7z
 *.dmg
 *.gz
 *.iso
-#*.jar
+*.jar
 *.rar
 *.tar
 *.zip
 
 # shell #
 #########
-
 *.sh~
 
 # Logs and databases #
@@ -64,14 +58,26 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+*.py[cod]
 
 # Jupyter
 .ipynb_checkpoints
 Untitled*.ipynb
 
 # Virtualenv
+venv/
 venv
 
-# PyCharm
-.idea
+# Maven
+target/
+dist/
 
+# Compiled Java class files
+*.class
+
+# Node artifact files
+node_modules/
+dist/
+
+# JetBrains IDE
+.idea
