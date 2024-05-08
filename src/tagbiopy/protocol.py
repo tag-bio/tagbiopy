@@ -498,7 +498,7 @@ class TagbioResult:
 
             with open(self.path, 'w') as fh:
                 if isinstance(self.content, dict):
-                    fh.write(json.dumps(self.content, indent=2))
+                    fh.write(json.dumps(self.content, indent=2, default=str))
                 else:
                     fh.write(self.content)
             logger.info(f'Note: {what!r} content stored to {self.path}')
