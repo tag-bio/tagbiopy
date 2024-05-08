@@ -362,7 +362,7 @@ class TagbioData:
 
 
 class TagbioResult:
-    _extensions = ('html', 'jpeg', 'pdf', 'png', 'svg', 'csv')
+    _extensions = ('html', 'json', 'jpeg', 'pdf', 'png', 'svg', 'csv')
 
     def __init__(self, extension='html', path=None, path_mutable=True):
         """
@@ -380,11 +380,11 @@ class TagbioResult:
         self._df = None
         # Handle on the figure plotted from the _df
         self._fig = None
+        # Content returned by an LLM
+        self._content = None
 
     def __repr__(self):
-        args = []
-        if self.extension:
-            args.append(f'extension={self.extension!r}')
+        args = [f'extension={self._extension!r}']
         if self.path:
             args.append(f'path={self.path!r}')
         if self._path_mutable:
@@ -404,12 +404,16 @@ class TagbioResult:
         return ret
 
     @property
+    def content(self):
+        return self._content
+
+    @content.setter
+    def content(self, s):
+        self._content = s
+
+    @property
     def df(self):
         return self._df
-
-    @df.deleter
-    def df(self):
-        del self._df
 
     @df.setter
     def df(self, data_frame):
@@ -419,7 +423,9 @@ class TagbioResult:
     def extension(self):
         if self._extension not in self._extensions:
             msg = f'{self!r}: Extension {self._extension!r} not valid. Chose from {self._extensions}'
-            log_exception(ValueError, msg)
+            logger.debug(msg)
+            raise ValueError(msg)
+
         return self._extension
 
     @property
@@ -453,6 +459,9 @@ class TagbioResult:
     def save(self, what='fig', **kwargs):
 
         if what == 'fig':
+            if self.fig is None:
+                raise RuntimeError(f'{self}: No figure generated')
+
             import matplotlib.figure
             import plotly.graph_objects
 
@@ -464,10 +473,14 @@ class TagbioResult:
             elif isinstance(self.fig, matplotlib.figure.Figure):
                 self.fig.savefig(self.path, format=self.extension, bbox_inches='tight', **kwargs)
             else:
-                message = 'Please create either a matplotlib or plotly figure'
-                log_exception(ValueError, message)
+                raise ValueError('Please create either a matplotlib or plotly figure')
+
+            logger.debug(f'{self}: figure stored to {self.path}')
 
         elif what == 'data':
+            if self.df is None:
+                raise RuntimeError(f'{self}: No data')
+
             path = self.path
             if self.extension != 'csv':
                 message = 'Your output extension is {}. Setting to "csv"'.format(self.extension)
@@ -476,4 +489,17 @@ class TagbioResult:
             logger.info('Storing TagbioResult data to {}'.format(path))
             float_format = '%.4f'
             self.df.to_csv(path, float_format=float_format)
-            logger.info('Stored')
+            logger.debug(f'{self} pd.DataFrame stored to {self.path}')
+
+        else:
+            
+            if self.content is None:
+                raise RuntimeError(f'{self}: No content created')
+
+            with open(self.path, 'w') as fh:
+                if isinstance(self.content, dict):
+                    fh.write(json.dumps(self.content, indent=2))
+                else:
+                    fh.write(self.content)
+            logger.info(f'Note: {what!r} content stored to {self.path}')
+            logger.debug(f'Content ({what!r}_: {self.content!r}')
