@@ -2,7 +2,7 @@
 set -ex
 
 
-export SETUPTOOLS_SCM_PRETEND_VERSION=0.8
+export SETUPTOOLS_SCM_PRETEND_VERSION=$(cat ${TAGBIO_PY}/VERSION.txt)
 
 echo "*** Building tagbio python library in dev mode in ${TAGBIO_PY}"
 
