@@ -2,7 +2,7 @@
 set -ex
 
 
-export SETUPTOOLS_SCM_PRETEND_VERSION=0.9.3a
+export SETUPTOOLS_SCM_PRETEND_VERSION=$(git describe --abbrev=0 --tags --always)
 
 echo "*** Building tagbio python library in dev mode in ${TAGBIO_PY}"
 
