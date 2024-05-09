@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import os
 import json
+import logging
 
 import requests
 
@@ -15,6 +16,8 @@ API_METHODS = ('/a', '/p', '/q', '/s', '/t')
 HEADER_DELIMITER = ': '
 HOST_CONFIG_JSON = os.path.join(os.environ['HOME'], '.tagbio.json')
 HOST_CONFIG_YAML = os.path.join(os.environ['HOME'], '.tagbio.yaml')
+
+logger = logging.getLogger()
 
 
 def _get_env_setting(var, default_value=None):
@@ -39,7 +42,7 @@ class _Request(ABC):
 
     The url property is generated from the 'host' argument. If the host is 'localhost', then it
     defaults to http://localhost:8000. Otherwise, the url is created from the host names using
-    "https://<host>.tag.bio". The API methods are chosen from ('/a', '/p', '/q', '/s', '/t').
+    "https://<host>". The API methods are chosen from ('/a', '/p', '/q', '/s', '/t').
 
     The payload property has setter, getter and deleter. The payload dictionary is prepared by
     the abstract method 'prepare_payload' which is then used to set the payload property. This method
@@ -103,7 +106,7 @@ class _Request(ABC):
             args.append('token=PROVIDED')
 
         str_repr = f'{self.__class__.__name__}('
-        str_repr += ', '.join([f'{v!r}' for v in args])
+        str_repr += ', '.join(args)
         str_repr += ')'
         return str_repr
 
@@ -117,10 +120,13 @@ class _Request(ABC):
         else:
             if host != DEFAULT_HOST:
                 if SCHEME not in host:
-                    host = f'{SCHEME}://{host}'
+                    if host.startswith('http://'):
+                        host = host.replace('http://', 'https://')
+                    else:
+                        host = f'{SCHEME}://{host}'
                 if KUNG not in host:
                     host = f'{host}/{KUNG}'
-                if self.fc_name not in host:
+                if self.fc_name is not None and self.fc_name not in host:
                     host = f'{host}/{self.fc_name}'
 
         return host
@@ -142,10 +148,12 @@ class _Request(ABC):
             msg = f'{self!r}: '
             if self.method_ is None:
                 msg += f'API method not defined. Choose from {API_METHODS}'
-                log_exception(RuntimeError, msg)
+                logger.warning(msg)
+                raise RuntimeError(msg)
             elif self.method_ not in API_METHODS:
                 msg += f'API method {self.method_!r} illegal. Choose from {API_METHODS}'
-                log_exception(ValueError, msg)
+                logger.warning(msg)
+                raise ValueError(msg)
             else:
                 self._api_method = self.method_
         return self._api_method
@@ -180,13 +188,12 @@ class _Request(ABC):
                 self._auth = http_basic_auth
             else:
                 if self.host != DEFAULT_HOST:
-                    log_exception(
-                        RuntimeError,
-                        message=f'{self!r}: API key or token authentication needed for host {self.host!r}')
+                    msg =f'{self!r}: Invalid authentication host {self.host!r}'
+                    logger.warning(msg)
+                    raise RuntimeError(msg)
                 else:
-                    logger.debug(
-                        f'{self!r}: No authentication provided, no authentication needed with {self.host!r}'
-                    )
+                    msg = f'{self!r}: No authentication provided, no authentication needed with {self.host!r}'
+                    logger.debug(msg)
 
         return self._auth
 
@@ -198,7 +205,8 @@ class _Request(ABC):
     def payload(self):
         if self._payload is None:
             msg = f'{repr(self)}: invalid payload "{self._payload}"'
-            log_exception(ValueError, msg)
+            logger.warning(msg)
+            raise ValueError(msg)
         return self._payload
 
     @payload.deleter
@@ -242,7 +250,8 @@ class _Request(ABC):
             r.raise_for_status()
             return r
         except (requests.HTTPError, requests.ConnectionError) as e:
-            log_exception(e, message=str(e))
+            logger.error(e)
+            raise
 
     @abstractmethod
     def prepare_payload(self, *args, **kwargs):
