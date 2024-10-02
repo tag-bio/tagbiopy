@@ -5,9 +5,11 @@ dependencies:
   - plotly
   - requests
   - inflection
+  - matplotlib
   - pyyaml
   - papermill
   - ipykernel
+  - seaborn
   - setuptools
   - setuptools_scm
   - wheel
