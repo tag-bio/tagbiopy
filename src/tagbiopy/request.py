@@ -3,12 +3,12 @@ import os
 import json
 import logging
 
+import pandas as pd
 import requests
 
-from tagbiopy import logger, DEFAULT_HOST, KUNG
+from tagbiopy import logger, DEFAULT_HOST, DOMAIN, KUNG, KUNG_CAPACITORS
 from tagbiopy.utils import get_post_headers, log_exception, to_json, validate
 
-SCHEME = 'https'
 TIMEOUT = None
 API_METHODS = ('/a', '/p', '/q', '/s', '/t')
 
@@ -31,6 +31,158 @@ def _get_env_setting(var, default_value=None):
         s = os.environ
 
     return s.get(var, default_value)
+
+
+class Session(ABC):
+    """
+    The Parent class is a template class for all fc requests. Requires a host and an API method.
+
+    The class handles POST requests using the requests python library. A post request requires
+    an url (set at object instantiation) and data, a json-string version of the payload dictionary.
+
+    The url property is generated from the 'host' argument. If the host is 'localhost', then it
+    defaults to http://localhost:8000. Otherwise, the url is created from the host names using
+    "https://<host>". The API methods are chosen from ('/a', '/p', '/q', '/s', '/t').
+
+    The payload property has setter, getter and deleter. The payload dictionary is prepared by
+    the abstract method 'prepare_payload' which is then used to set the payload property. This method
+    can only be provided in child classes. When the payload property is set, the data property
+    (used in the API calls) is then serialized by applying json.dumps to it.
+
+    These two properties, url and data, are prerequisites for issuing an http POST request. The post
+    property holds requests.post object. POST response can be accessed through the 'as_dict' property, which
+    is a shorthand for serializing the object.
+
+    In order to change/update the POST request, one needs to modify the payload and then examine the
+    content of the post property.
+
+    The subclasses SRequest, PRequest, QRequests, etc. all have the correct url assigned as the character
+    in the API method. For example, SRequest handles the '/s' API method.
+    """
+    colum_map = {
+        'key': 'Name',
+        'description': 'Description',
+        'displayname': 'Title',
+        'link': 'Reference',
+        'url': 'url',
+        'entity_name_singular': 'Entity',
+    }
+
+    def __init__(self, host: str, api_key: str = None) -> None:
+        """
+
+        :param host: str, data product host url.
+        :param fc_name: str, fc name, as in fc-XXXX. Default none, use for running on localhost
+        :param api_key: str
+        :param token: str, bearer token, found in request.auth
+        """
+        logger.info(f'{self.__class__}: Initialize')
+
+        self.host = self._set_host(host)
+        self.api_key = self._set_api_key(api_key)
+
+        # Reset for localhost
+        if self.host == DEFAULT_HOST:
+            self.fc_name = None
+            self.api_key = None
+            self.token = None
+
+        self._auth = None
+        self._products_url = None
+
+        logger.info(f'{self!r}: Initialized')
+
+    def __repr__(self):
+        args = [f'host={self.host!r}']
+        if self.api_key:
+            args.append('api_key=PROVIDED')
+
+        str_repr = f'{self.__class__.__name__}('
+        str_repr += ', '.join(args)
+        str_repr += ')'
+        return str_repr
+
+    def _set_host(self, host):
+        if host is None:
+            host = _get_env_setting('TAGBIO_HOST_URL', default_value=DEFAULT_HOST)
+        else:
+            if host != DEFAULT_HOST:
+                if host.startswith('http://'):
+                    host = host.replace('http://', 'https://')
+                else:
+                    if host.startswith('https://'):
+                        pass
+                    else:
+                        host = f'https://{host}'
+        return host
+
+    def _set_api_key(self, api_key):
+        if self.host == DEFAULT_HOST:
+            # We don't need an API key on localhost
+            logger.debug(f'API key not needed on {self.host}')
+            return
+
+        if api_key is None:
+            api_key = _get_env_setting('TAGBIO_API_KEY')
+
+        return api_key
+
+    @property
+    def auth(self):
+        if self._auth is None:
+            # api_key looks like: "email:uuid".
+
+            if self.api_key:
+                if self.host != DEFAULT_HOST:
+                    self._auth = tuple(self.api_key.split(':'))
+
+            else:
+                if self.host != DEFAULT_HOST:
+                    msg = f'{self!r}: Invalid authentication host {self.host!r}'
+                    logger.warning(msg)
+                    raise RuntimeError(msg)
+                else:
+                    msg = f'{self!r}: No authentication provided, no authentication needed with {self.host!r}'
+                    logger.debug(msg)
+
+        return self._auth
+
+    @property
+    def post(self) -> requests.post:
+        logger.debug(f'{self!r}: issue POST request to {self.products_url!r}')
+        if self.products_url is None:
+            return
+
+        try:
+            r = requests.get(self.products_url, auth=self.auth)
+            logger.debug(f'{self!r}: headers: {get_post_headers(r)}')
+            logger.info(
+                f'HTTP {r.request.method} response status code {r.status_code}, content: {r.content[:70]}'
+            )
+            r.raise_for_status()
+            return r
+        except (requests.HTTPError, requests.ConnectionError) as e:
+            logger.error(e)
+            raise
+
+    def summary(self, ):
+        if self.post is None:
+            logger.warning(f'{self!r}: No information on other data products from {self.host!r}')
+            return
+        s = self.post.json()
+        df = pd.DataFrame(s)
+        columns = [v for v in self.colum_map.keys()]
+        df = df[columns]
+        return df.rename(columns=self.colum_map)
+
+    @property
+    def products_url(self):
+        if self._products_url is None:
+            if self.host != DEFAULT_HOST:
+                self._products_url = os.path.join(self.host, KUNG_CAPACITORS)
+            else:
+                self._products_url = None
+        return self._products_url
 
 
 class _Request(ABC):
@@ -188,7 +340,7 @@ class _Request(ABC):
                 self._auth = http_basic_auth
             else:
                 if self.host != DEFAULT_HOST:
-                    msg =f'{self!r}: Invalid authentication host {self.host!r}'
+                    msg = f'{self!r}: Invalid authentication host {self.host!r}'
                     logger.warning(msg)
                     raise RuntimeError(msg)
                 else:
