@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 set -ex
 
-mamba init bash
-source /root/.bashrc
 
-# CREATE TAGBIOPY-SPECIFIC NOTEBOOK
+eval "$(mamba shell hook --shell bash)"
+
+# CREATE TAGBIOPY NOTEBOOK ENVIRONMENT
 mamba create -n tagbiopy-notebook
-mamba activate tagbiopy-notebook
 
 # ADD PYTHON DEPENDENCIES
-mamba env update -n $(echo $CONDA_DEFAULT_ENV) -f ${TAGBIO_PY}/environment.yml
+mamba env update -n tagbiopy-notebook -f "${TAGBIO_PY}"/environment.yml
 
-# INSTALL PYTHON SDK
-export SETUPTOOLS_SCM_PRETEND_VERSION=$(cat ${TAGBIO_PY}/VERSION.txt) && mamba run -n $(echo $CONDA_DEFAULT_ENV) pip install -e "${TAGBIO_PY}" --root-user-action=ignore
+# INSTALL TAGBIO PYTHON SDK
+SETUPTOOLS_SCM_PRETEND_VERSION=$(cat "${TAGBIO_PY}"/VERSION.txt)
+export SETUPTOOLS_SCM_PRETEND_VERSION
+
+mamba run -n tagbiopy-notebook pip install -e "${TAGBIO_PY}" --root-user-action=ignore
+
+mamba activate tagbiopy-notebook

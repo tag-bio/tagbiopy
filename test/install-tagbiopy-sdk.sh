@@ -9,5 +9,5 @@ Installing Tag.bio Python SDK
 ***     conda is $(which conda)    ***
 *****************************
 "
-mamba env update -f ${TAGBIO_PY}/environment.yml
-mamba run -n base ${TAGBIO_PY}/install-package.sh
+mamba env update -f "${TAGBIO_PY}"/environment.yml
+mamba run -n base "${TAGBIO_PY}"/install-package.sh
