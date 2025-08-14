@@ -1,9 +1,53 @@
-[build-system]
-# AVOID CHANGING REQUIRES: IT WILL BE UPDATED BY PYSCAFFOLD!
-requires = ["setuptools>=46.1.0", "setuptools_scm[toml]>=5"]
-build-backend = "setuptools.build_meta"
+[project]
+name = "tagbiopy"
+version = "0.9.3a0"
+description = "Python code for Tag.bio data product exploration, interaction, and data analysis"
+readme = "README.md"
+authors = [
+    { name = "Damir H.", email = "support@tag.bio" }
+]
+license = "MIT"
+license-files = ["LICEN[CS]E.*"]
+classifiers = [
+    "Private :: Do Not Upload",
+    "Classifier: Development Status :: 4 - Beta",
+    "Classifier: Programming Language :: Python"
+]
+requires-python = ">=3.13"
+dependencies = [
+    "numpy",
+    "pandas",
+    "plotly",
+    "requests",
+    "inflection",
+    "matplotlib",
+    "pyyaml",
+    "papermill",
+    "ipykernel",
+    "seaborn"
+]
 
-[tool.setuptools_scm]
-# For smarter version schemes and other configuration options,
-# check out https://github.com/pypa/setuptools_scm
-version_scheme = "no-guess-dev"
+[project.urls]
+Homepage = "https://tag.bio"
+Repository = "https://bitbucket.org/cloudfolks/tagbiopy"
+Documentation = "https://code.tag.bio"
+
+[build-system]
+requires = ["uv_build>=0.8.9,<0.9.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+connect_tagbio_py = "tagbiopy.cli:main"
+
+[dependency-groups]
+dev = [
+  {include-group = "lint"},
+  {include-group = "test"}
+]
+lint = [
+  "ruff"
+]
+test = [
+  "pytest",
+  "pytest-cov"
+]

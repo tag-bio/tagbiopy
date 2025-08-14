@@ -1,77 +1,10 @@
-# Compiled source #
-###################
-*.com
-*.class
-*.dll
-*.exe
-*.o
-*.so
-
-# venv
-venv/
-
-# Packages #
-############
-# it's better to unpack these files and commit the raw source
-# git has its own built in compression methods
-*.7z
-*.dmg
-*.gz
-*.iso
-#*.jar
-*.rar
-*.tar
-*.zip
-
-# shell #
-#########
-
-*.sh~
-
-# Logs and databases #
-######################
-*.log
-*.sql
-*.sqlite
-
-# OS generated files #
-######################
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# python
-#########
-*.pyc
-*.py~
-.Python
-env/
+# Python-generated files
+__pycache__/
+*.py[oc]
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
+wheels/
+*.egg-info
 
-# Jupyter
-.ipynb_checkpoints
-Untitled*.ipynb
-
-# Virtualenv
-venv
-
-# PyCharm
-.idea
-
+# Virtual environments
+.venv
