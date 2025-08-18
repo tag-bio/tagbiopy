@@ -1,12 +1,8 @@
 # tagbiopy: Python SDK and API wrapper for Tag.bio integration #
 
 ## Development
-Clone this repository, and from the project root, execute:
-```uv build``` 
-
-This will load the provided `uv.lock` file to create a virtual environment on the fly. 
-Once finished, you will find the virtual environment at `.venv/` and the finished
-`tagbiopy` in `dist/`.
-
-To install the finished `tagbiopy` into the project `venv` for testing, run:
-```uv pip install dist/tagbiopy-[UPDATE_YOUR_VERSION_HERE]-py3-none-any.whl```
+1. In a terminal, clone this repository and move to the project root
+3. Execute `uv venv` to create a virtual environment for this project
+4. Load the new environment with `source .venv/bin/activate`
+5. Build the project by executing `uv build`
+6. Install the newly built `tagbiopy` with `uv pip install dist/tagbiopy-0.9.3a0-py3-none-any.whl`
