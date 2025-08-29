@@ -9,6 +9,7 @@ import requests
 from tagbiopy import logger, DEFAULT_HOST, DOMAIN, KUNG, KUNG_CAPACITORS
 from tagbiopy.utils import get_post_headers, log_exception, to_json, validate
 
+SCHEME = "https"
 TIMEOUT = None
 API_METHODS = ('/a', '/p', '/q', '/s', '/t')
 
