@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 
 from typing import Dict
 
@@ -76,7 +77,7 @@ def run_python_function(args):
 
 
 def run():
-    print_ts(f'tagbiopy {__version__}', flush=True)
+    print_ts(f'Tagbio Python SDK version: {__version__}', flush=True)
     args = parse_arguments()
 
     msg = f'Python command line arguments:\n{json.dumps(vars(args), indent=2)}'
@@ -90,6 +91,10 @@ def run():
 
 
 def main():
+    # The FC engine invokes this entry point to run a plugin. Mark the process so the SDK never
+    # falls back to ~/.tagbio.json for connection/auth: a plugin's credentials come only from the
+    # engine packet (host + the invoking user's token). Mirrors connect_tagbio.R in the R SDK.
+    os.environ['TAGBIO_PLUGIN_CONTEXT'] = '1'
     try:
         run()
     except Exception as e:

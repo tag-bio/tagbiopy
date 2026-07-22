@@ -21,7 +21,22 @@ HOST_CONFIG_YAML = os.path.join(os.environ['HOME'], '.tagbio.yaml')
 logger = logging.getLogger()
 
 
+def _in_plugin_context():
+    """True when running as an FC engine plugin (the plugin runner, cli.py:main, sets the sentinel).
+
+    In a plugin the connection + auth come ONLY from the engine packet (host + the invoking user's
+    token). The SDK must NEVER fall back to ~/.tagbio.json here: the developer's carte-blanche file
+    api_key must not ride along (privilege escalation) -- fail loud instead. Ad-hoc scripts (no
+    sentinel) use the file as overridable defaults. Mirrors connect_tagbio.R in the R SDK, which sets
+    the same TAGBIO_PLUGIN_CONTEXT sentinel.
+    """
+    return os.environ.get('TAGBIO_PLUGIN_CONTEXT') == '1'
+
+
 def _get_env_setting(var, default_value=None):
+    if _in_plugin_context():
+        # Plugins never read ~/.tagbio.json (or ambient env) for connection/auth.
+        return default_value
     if os.path.exists(HOST_CONFIG_JSON):
         from tagbiopy.utils import load_json
         s = load_json(HOST_CONFIG_JSON)
@@ -32,6 +47,20 @@ def _get_env_setting(var, default_value=None):
         s = os.environ
 
     return s.get(var, default_value)
+
+
+def _is_localhost(host):
+    """True if `host` targets localhost (any port/scheme).
+
+    The FC HTTP server grants all permissions to requests whose server name is 'localhost'
+    (flux-http localhost loophole), on any port -- so the SDK treats any localhost host as no-auth
+    http, matching the R SDK. Matches the literal name 'localhost' only (not 127.0.0.1), the same
+    as the server.
+    """
+    if not host:
+        return False
+    name = host.split('://', 1)[-1].split('/', 1)[0].split(':', 1)[0]
+    return name == 'localhost'
 
 
 class Session(ABC):
@@ -69,7 +98,7 @@ class Session(ABC):
         'entity_name_singular': 'Entity',
     }
 
-    def __init__(self, host: str, api_key: str = None) -> None:
+    def __init__(self, host: str, api_key: str = None, token: str = None) -> None:
         """
 
         :param host: str, data product host url.
@@ -81,9 +110,10 @@ class Session(ABC):
 
         self.host = self._set_host(host)
         self.api_key = self._set_api_key(api_key)
+        self.token = token
 
         # Reset for localhost
-        if self.host == DEFAULT_HOST:
+        if _is_localhost(self.host):
             self.fc_name = None
             self.api_key = None
             self.token = None
@@ -104,21 +134,21 @@ class Session(ABC):
         return str_repr
 
     def _set_host(self, host):
+        # Resolve the host (explicit arg, else env / ~/.tagbio.json, else localhost), then classify:
+        # a localhost host (any port) is no-auth http; anything else is a remote host over https.
         if host is None:
             host = _get_env_setting('TAGBIO_HOST_URL', default_value=DEFAULT_HOST)
-        else:
-            if host != DEFAULT_HOST:
-                if host.startswith('http://'):
-                    host = host.replace('http://', 'https://')
-                else:
-                    if host.startswith('https://'):
-                        pass
-                    else:
-                        host = f'https://{host}'
+        if _is_localhost(host):
+            if not host.startswith(('http://', 'https://')):
+                host = f'http://{host}'
+        elif host.startswith('http://'):
+            host = host.replace('http://', 'https://')
+        elif not host.startswith('https://'):
+            host = f'https://{host}'
         return host
 
     def _set_api_key(self, api_key):
-        if self.host == DEFAULT_HOST:
+        if _is_localhost(self.host):
             # We don't need an API key on localhost
             logger.debug(f'API key not needed on {self.host}')
             return
@@ -131,20 +161,20 @@ class Session(ABC):
     @property
     def auth(self):
         if self._auth is None:
-            # api_key looks like: "email:uuid".
-
-            if self.api_key:
-                if self.host != DEFAULT_HOST:
-                    self._auth = tuple(self.api_key.split(':'))
-
+            # A token (delegated user auth) takes priority; otherwise basic auth from the api_key
+            # ("email:uuid"). Localhost needs no auth.
+            if self.token:
+                from .utils import BearerAuth
+                self._auth = BearerAuth(self.token)
+            elif self.api_key and not _is_localhost(self.host):
+                self._auth = tuple(self.api_key.split(':'))
+            elif not _is_localhost(self.host):
+                msg = f'{self!r}: Invalid authentication host {self.host!r}'
+                logger.warning(msg)
+                raise RuntimeError(msg)
             else:
-                if self.host != DEFAULT_HOST:
-                    msg = f'{self!r}: Invalid authentication host {self.host!r}'
-                    logger.warning(msg)
-                    raise RuntimeError(msg)
-                else:
-                    msg = f'{self!r}: No authentication provided, no authentication needed with {self.host!r}'
-                    logger.debug(msg)
+                msg = f'{self!r}: No authentication provided, no authentication needed with {self.host!r}'
+                logger.debug(msg)
 
         return self._auth
 
@@ -179,7 +209,7 @@ class Session(ABC):
     @property
     def products_url(self):
         if self._products_url is None:
-            if self.host != DEFAULT_HOST:
+            if not _is_localhost(self.host):
                 self._products_url = os.path.join(self.host, KUNG_CAPACITORS)
             else:
                 self._products_url = None
@@ -230,7 +260,7 @@ class _Request(ABC):
         self.token = token
 
         # Reset for localhost
-        if self.host == DEFAULT_HOST:
+        if _is_localhost(self.host):
             self.fc_name = None
             self.api_key = None
             self.token = None
@@ -264,32 +294,40 @@ class _Request(ABC):
         return str_repr
 
     def _set_host(self, host):
+        # Resolve the host (explicit arg, else env / ~/.tagbio.json, else localhost), THEN classify
+        # and build the URL -- uniformly, whether the host was passed or resolved from config. This is
+        # what fixes the bare FC(fc_name=...) case: a remote host resolved from ~/.tagbio.json now gets
+        # the /<KUNG>/<fc_name> path appended, instead of hitting a bare /q (405).
         if host is None:
             host = _get_env_setting('TAGBIO_HOST_URL', default_value=DEFAULT_HOST)
-            if host == DEFAULT_HOST:
-                if self.fc_name is not None:
-                    logger.debug(f'Set fc_name from {self.fc_name} to None on {host}')
-                    self.fc_name = None
+        if _is_localhost(host):
+            # localhost, any port: a single FC over http, no /<KUNG>/<fc_name> path, no auth
+            if not host.startswith(('http://', 'https://')):
+                host = f'http://{host}'
+            if self.fc_name is not None:
+                self.fc_name = None
         else:
-            if host != DEFAULT_HOST:
-                if SCHEME not in host:
-                    if host.startswith('http://'):
-                        host = host.replace('http://', 'https://')
-                    else:
-                        host = f'{SCHEME}://{host}'
-                if KUNG not in host:
-                    host = f'{host}/{KUNG}'
-                if self.fc_name is not None and self.fc_name not in host:
-                    host = f'{host}/{self.fc_name}'
-
+            # remote: https + /<KUNG>/<fc_name>; strip a trailing slash first so we don't build '//'
+            host = host.rstrip('/')
+            if SCHEME not in host:
+                if host.startswith('http://'):
+                    host = host.replace('http://', 'https://')
+                else:
+                    host = f'{SCHEME}://{host}'
+            if KUNG not in host:
+                host = f'{host}/{KUNG}'
+            if self.fc_name is not None and self.fc_name not in host:
+                host = f'{host}/{self.fc_name}'
         return host
 
     def _set_api_key(self, api_key):
-        if self.host == DEFAULT_HOST:
+        if _is_localhost(self.host):
             # We don't need an API key on localhost
             logger.debug(f'API key not needed on {self.host}')
             return
 
+        # Ad-hoc default: fall back to ~/.tagbio.json for the api_key. In a plugin this is a no-op --
+        # _get_env_setting refuses the file when the plugin sentinel is set (see _in_plugin_context).
         if api_key is None:
             api_key = _get_env_setting('TAGBIO_API_KEY')
 
@@ -323,7 +361,7 @@ class _Request(ABC):
             http_basic_auth = None
             bearer_auth = None
             if self.api_key:
-                if self.host != DEFAULT_HOST:
+                if not _is_localhost(self.host):
                     from requests.auth import HTTPBasicAuth
                     http_basic_auth = HTTPBasicAuth(*self.api_key.split(':'))
 
@@ -340,7 +378,7 @@ class _Request(ABC):
             elif http_basic_auth is not None:
                 self._auth = http_basic_auth
             else:
-                if self.host != DEFAULT_HOST:
+                if not _is_localhost(self.host):
                     msg = f'{self!r}: Invalid authentication host {self.host!r}'
                     logger.warning(msg)
                     raise RuntimeError(msg)

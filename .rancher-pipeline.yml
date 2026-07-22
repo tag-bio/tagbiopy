@@ -34,7 +34,6 @@ stages:
 branch:
   include:
     - master
-    - stage
 timeout: 60
 notification:
   recipients:
