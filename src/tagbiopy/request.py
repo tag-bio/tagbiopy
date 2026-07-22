@@ -18,6 +18,10 @@ HEADER_DELIMITER = ': '
 HOST_CONFIG_JSON = os.path.join(os.environ['HOME'], '.tagbio.json')
 HOST_CONFIG_YAML = os.path.join(os.environ['HOME'], '.tagbio.yaml')
 
+# Host may be given as TAGBIO_HOST_URL or (the deployed notebook's convention) TAGBIO_BASE_URL.
+# When resolving the host, try both names, in this order.
+HOST_KEYS = ('TAGBIO_HOST_URL', 'TAGBIO_BASE_URL')
+
 logger = logging.getLogger()
 
 
@@ -47,16 +51,27 @@ def _get_env_setting(var, default_value=None):
         # Plugins never read ~/.tagbio.json (or ambient env) for connection/auth, unless a dev has
         # explicitly opted in for a test via TAGBIO_PLUGIN_ALLOW_CONFIG.
         return default_value
+    # Precedence: ~/.tagbio.json FILE beats environment, resolved PER KEY (a file that sets only some
+    # keys falls through to env for the rest, rather than blanking them out). When resolving the host,
+    # accept either TAGBIO_HOST_URL or TAGBIO_BASE_URL. Mirrors tagConnect() in the R SDK.
+    file_cfg = {}
     if os.path.exists(HOST_CONFIG_JSON):
         from tagbiopy.utils import load_json
-        s = load_json(HOST_CONFIG_JSON)
+        file_cfg = load_json(HOST_CONFIG_JSON)
     elif os.path.exists(HOST_CONFIG_YAML):
         from tagbiopy.utils import load_yaml
-        s = load_yaml(HOST_CONFIG_YAML)
-    else:
-        s = os.environ
+        file_cfg = load_yaml(HOST_CONFIG_YAML)
 
-    return s.get(var, default_value)
+    keys = HOST_KEYS if var == 'TAGBIO_HOST_URL' else (var,)
+    for k in keys:                                    # file wins, per key
+        v = file_cfg.get(k)
+        if v not in (None, ''):
+            return v
+    for k in keys:                                    # else the environment
+        v = os.environ.get(k)
+        if v not in (None, ''):
+            return v
+    return default_value
 
 
 def _is_localhost(host):
@@ -317,13 +332,13 @@ class _Request(ABC):
             if self.fc_name is not None:
                 self.fc_name = None
         else:
-            # remote: https + /<KUNG>/<fc_name>; strip a trailing slash first so we don't build '//'
+            # remote: <KUNG>/<fc_name>; strip a trailing slash first so we don't build '//'
             host = host.rstrip('/')
-            if SCHEME not in host:
-                if host.startswith('http://'):
-                    host = host.replace('http://', 'https://')
-                else:
-                    host = f'{SCHEME}://{host}'
+            # Respect an explicit scheme (R parity): an internal cluster endpoint is plain http
+            # (e.g. http://kung.tagbio-app.svc.cluster.local:8000) and force-upgrading it to https
+            # yields an SSL WRONG_VERSION_NUMBER. Only default to https when no scheme was given.
+            if not host.startswith(('http://', 'https://')):
+                host = f'{SCHEME}://{host}'
             if KUNG not in host:
                 host = f'{host}/{KUNG}'
             if self.fc_name is not None and self.fc_name not in host:
