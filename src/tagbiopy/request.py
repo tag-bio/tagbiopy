@@ -33,9 +33,19 @@ def _in_plugin_context():
     return os.environ.get('TAGBIO_PLUGIN_CONTEXT') == '1'
 
 
+def _plugin_config_override():
+    """Explicit dev opt-in to read ~/.tagbio.json even inside a plugin, for locally testing a
+    remote cross-FC call. Deliberate and off by default: a test has no user token, so there is
+    nothing to escalate over. Production never sets this. Mirrors TAGBIO_PLUGIN_ALLOW_CONFIG in
+    the R SDK.
+    """
+    return os.environ.get('TAGBIO_PLUGIN_ALLOW_CONFIG') == '1'
+
+
 def _get_env_setting(var, default_value=None):
-    if _in_plugin_context():
-        # Plugins never read ~/.tagbio.json (or ambient env) for connection/auth.
+    if _in_plugin_context() and not _plugin_config_override():
+        # Plugins never read ~/.tagbio.json (or ambient env) for connection/auth, unless a dev has
+        # explicitly opted in for a test via TAGBIO_PLUGIN_ALLOW_CONFIG.
         return default_value
     if os.path.exists(HOST_CONFIG_JSON):
         from tagbiopy.utils import load_json
