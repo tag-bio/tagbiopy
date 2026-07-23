@@ -323,13 +323,24 @@ class _Request(ABC):
         # and build the URL -- uniformly, whether the host was passed or resolved from config. This is
         # what fixes the bare FC(fc_name=...) case: a remote host resolved from ~/.tagbio.json now gets
         # the /<KUNG>/<fc_name> path appended, instead of hitting a bare /q (405).
-        if host is None:
+        host_provided = bool(host)   # None or '' => host defaulted (not explicitly given)
+        if not host:
             host = _get_env_setting('TAGBIO_HOST_URL', default_value=DEFAULT_HOST)
         if _is_localhost(host):
             # localhost, any port: a single FC over http, no /<KUNG>/<fc_name> path, no auth
             if not host.startswith(('http://', 'https://')):
                 host = f'http://{host}'
             if self.fc_name is not None:
+                # A named FC on localhost only makes sense as an EXPLICIT local-dev query (localhost
+                # serves a single FC via bare /q). If the host DEFAULTED to localhost (none provided), a
+                # named cross-FC call has no remote host to reach -- error clearly instead of silently
+                # dialing the local server (a plugin auto-test with no host/session hits this).
+                if not host_provided:
+                    raise RuntimeError(
+                        f"Cannot reach named FC '{self.fc_name}': no host is configured (resolved to "
+                        "localhost). A named cross-FC call needs a host and a signed-in user session; in "
+                        "a plugin auto-test both are absent -- guard the call and degrade gracefully, or "
+                        "run where the FC is reachable.")
                 self.fc_name = None
         else:
             # remote: <KUNG>/<fc_name>; strip a trailing slash first so we don't build '//'
