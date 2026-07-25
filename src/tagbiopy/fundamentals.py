@@ -227,11 +227,17 @@ class NumericSlice(VariableBlockImpl, SetBlock):
             log_exception(ValueError, msg)
 
         if v is not None:
-            try:
-                v = float(v)
-            except ValueError as e:
-                logger.debug(e, exc_info=True)
-                raise
+            # Preserve the "NaN" sentinel as a string -- it is passed through JSON as the value of a
+            # not-null / is-null numeric-slice (the engine's null test for a numeric criterion).
+            # float('NaN') would turn it into a bare NaN token, so special-case it before coercion.
+            if isinstance(v, str) and v.strip().lower() == 'nan':
+                v = 'NaN'
+            else:
+                try:
+                    v = float(v)
+                except ValueError as e:
+                    logger.debug(e, exc_info=True)
+                    raise
 
         if p is not None:
             try:
