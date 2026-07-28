@@ -10,13 +10,17 @@ from tagbiopy import logger, DEFAULT_HOST, DOMAIN, KUNG, KUNG_CAPACITORS
 from tagbiopy.utils import get_post_headers, log_exception, to_json, validate
 
 SCHEME = "https"
-TIMEOUT = None
+# (connect, read) timeout. A short CONNECT timeout fails fast when the server is unreachable/down
+# (the "blocks forever" case), while read=None means a slow-but-responding query is NEVER aborted
+# mid-flight -- some FC queries legitimately run for minutes+. A plain scalar would apply to both
+# phases and kill long queries, so keep the tuple.
+TIMEOUT = (30, None)
 API_METHODS = ('/a', '/p', '/q', '/s', '/t')
 
 # In /q requests
 HEADER_DELIMITER = ': '
-HOST_CONFIG_JSON = os.path.join(os.environ['HOME'], '.tagbio.json')
-HOST_CONFIG_YAML = os.path.join(os.environ['HOME'], '.tagbio.yaml')
+HOST_CONFIG_JSON = os.path.join(os.path.expanduser('~'), '.tagbio.json')
+HOST_CONFIG_YAML = os.path.join(os.path.expanduser('~'), '.tagbio.yaml')
 
 # Host may be given as TAGBIO_HOST_URL or (the deployed notebook's convention) TAGBIO_BASE_URL.
 # When resolving the host, try both names, in this order.
@@ -86,6 +90,62 @@ def _is_localhost(host):
         return False
     name = host.split('://', 1)[-1].split('/', 1)[0].split(':', 1)[0]
     return name == 'localhost'
+
+
+class TagbioAPIError(Exception):
+    """A tag.bio FC API call failed.
+
+    Carries the address and, when available, the HTTP status and the server's own message -- the
+    Python analog of the R SDK's ``tagbio_api_error`` condition, so a failure is legible and
+    catchable (``except TagbioAPIError``) rather than a bare requests exception.
+    """
+    def __init__(self, message, url=None, status=None):
+        super().__init__(message)
+        self.url = url
+        self.status = status
+
+
+def _server_message(r):
+    """Best-effort extraction of the server's own error message; never raises itself."""
+    try:
+        body = r.json()
+        if isinstance(body, dict) and body.get('message'):
+            return str(body['message'])
+    except Exception:
+        pass
+    try:
+        text = (r.content or b'')[:200].decode('utf-8', 'replace').strip()
+        return text or None
+    except Exception:
+        return None
+
+
+def _classified_api_error(url, status=None, server_msg=None, transport_msg=None):
+    """Build a classified TagbioAPIError that says WHAT failed and WHERE. Mirrors R's tag_api_stop()."""
+    if transport_msg is not None:
+        headline = ("Could not reach the tag.bio server. Is it running, and are the host and your "
+                    "network / VPN correct?")
+    elif status == 401:
+        headline = "Authentication failed (HTTP 401). Check your API key."
+    elif status == 503:
+        headline = ("The FC is up but not ready yet (HTTP 503) -- it may still be loading its archive "
+                    "or running startup tests. Retry shortly.")
+    elif status == 502:
+        headline = "The FC appears to be offline (HTTP 502 from the gateway)."
+    elif status == 500:
+        headline = ("The FC returned an internal server error (HTTP 500). If it was just (re)started it "
+                    "may still be loading its archive / running startup tests -- retry shortly; if it "
+                    "persists it is a real server error.")
+    elif status is not None:
+        headline = f"The tag.bio API returned an unexpected status (HTTP {status})."
+    else:
+        headline = "The tag.bio API call failed."
+    lines = [headline, f"  Address: {url}"]
+    if transport_msg:
+        lines.append(f"  Details: {transport_msg}")
+    if server_msg:
+        lines.append(f"  Server said: {server_msg}")
+    return TagbioAPIError("\n".join(lines), url=url, status=status)
 
 
 class Session(ABC):
@@ -215,16 +275,19 @@ class Session(ABC):
             return
 
         try:
-            r = requests.get(self.products_url, auth=self.auth)
-            logger.debug(f'{self!r}: headers: {get_post_headers(r)}')
-            logger.info(
-                f'HTTP {r.request.method} response status code {r.status_code}, content: {r.content[:70]}'
-            )
-            r.raise_for_status()
-            return r
-        except (requests.HTTPError, requests.ConnectionError) as e:
+            r = requests.get(self.products_url, auth=self.auth, timeout=TIMEOUT)
+        except (requests.ConnectionError, requests.Timeout) as e:
             logger.error(e)
-            raise
+            raise _classified_api_error(self.products_url, transport_msg=str(e)) from None
+        logger.debug(f'{self!r}: headers: {get_post_headers(r)}')
+        logger.info(
+            f'HTTP {r.request.method} response status code {r.status_code}, content: {r.content[:70]}'
+        )
+        if r.status_code != 200:
+            err = _classified_api_error(self.products_url, status=r.status_code, server_msg=_server_message(r))
+            logger.error(err)
+            raise err
+        return r
 
     def summary(self, ):
         if self.post is None:
@@ -475,15 +538,18 @@ class _Request(ABC):
 
         try:
             r = requests.post(self.url, **self._post_kwargs)
-            logger.debug(f'{self!r}: headers: {get_post_headers(r)}')
-            logger.info(
-                f'HTTP {r.request.method} response status code {r.status_code}, content: {r.content[:70]}'
-            )
-            r.raise_for_status()
-            return r
-        except (requests.HTTPError, requests.ConnectionError) as e:
+        except (requests.ConnectionError, requests.Timeout) as e:
             logger.error(e)
-            raise
+            raise _classified_api_error(self.url, transport_msg=str(e)) from None
+        logger.debug(f'{self!r}: headers: {get_post_headers(r)}')
+        logger.info(
+            f'HTTP {r.request.method} response status code {r.status_code}, content: {r.content[:70]}'
+        )
+        if r.status_code != 200:
+            err = _classified_api_error(self.url, status=r.status_code, server_msg=_server_message(r))
+            logger.error(err)
+            raise err
+        return r
 
     @abstractmethod
     def prepare_payload(self, *args, **kwargs):

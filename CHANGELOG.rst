@@ -2,9 +2,5 @@
 Changelog
 =========
 
-Version 0.1
-===========
-
-- Feature A added
-- FIX: nasty bug #1729 fixed
-- add your changes here!
+See the project's git history and release tags for the full change record
+(the package version is tracked in ``src/tagbiopy/__init__.py``).
