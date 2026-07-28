@@ -166,6 +166,11 @@ class Session(ABC):
         if _is_localhost(host):
             if not host.startswith(('http://', 'https://')):
                 host = f'http://{host}'
+            # "localhost" is a proxy keyword for the full local URL: default the port to 8000 when the
+            # host names none ("localhost" -> http://localhost:8000), mirroring DEFAULT_HOST and the R
+            # SDK, so a self-query need only write host="localhost" (or "localhost:7999").
+            if ':' not in host.split('://', 1)[-1].split('/', 1)[0]:
+                host = f'{host}:8000'
         elif host.startswith('http://'):
             host = host.replace('http://', 'https://')
         elif not host.startswith('https://'):
