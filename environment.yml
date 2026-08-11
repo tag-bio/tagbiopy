@@ -7,11 +7,18 @@ dependencies:
   - plotly
   - requests
   - inflection
+  - ipywidgets
+  - lifelines
   - matplotlib
+  - openpyxl
+  - pytest
+  - python-duckdb
   - pyyaml
   - papermill
   - ipykernel
   - seaborn
   - setuptools
   - setuptools_scm
+  - tabulate
   - wheel
+  - xlsxwriter
