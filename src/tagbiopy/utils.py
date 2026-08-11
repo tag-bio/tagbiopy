@@ -72,11 +72,24 @@ def content_to_dataframe(content, index=None, **kwargs) -> pd.DataFrame:
     """
     import io
 
-    logger.debug(f'Encode content')
-    encoded_content = str(content, 'utf-8')
-    logger.debug(f'Content encoded to utf-8, reading into a dataframe')
-    _df = pd.read_csv(io.StringIO(encoded_content), **kwargs)
-    logger.debug(f'Content turned into a {_df.shape} dataframe')
+    # Sniff the response bytes rather than trusting the requested format: parquet files begin with the
+    # magic bytes b'PAR1'. Robust to FC version skew -- an older FC that ignored output_type returns CSV
+    # and we fall through to the CSV path.
+    if isinstance(content, (bytes, bytearray)) and content[:4] == b'PAR1':
+        logger.debug(f'Detected parquet response (PAR1); reading with pyarrow')
+        try:
+            _df = pd.read_parquet(io.BytesIO(content))
+        except ImportError as e:
+            raise ImportError(
+                "Reading a parquet download requires pyarrow. "
+                "Install with: pip install 'tagbiopy[parquet]' (or pip install pyarrow)") from e
+        logger.debug(f'Parquet content turned into a {_df.shape} dataframe')
+    else:
+        logger.debug(f'Encode content')
+        encoded_content = str(content, 'utf-8')
+        logger.debug(f'Content encoded to utf-8, reading into a dataframe')
+        _df = pd.read_csv(io.StringIO(encoded_content), **kwargs)
+        logger.debug(f'Content turned into a {_df.shape} dataframe')
 
     # Use default index if index not specified
     if index is None:

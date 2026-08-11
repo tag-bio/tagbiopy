@@ -695,7 +695,7 @@ class QRequest(_Request):
             self._q_collections = self.as_dict
         return self._q_collections
 
-    def get_content(self, script=None, analysis_variables=None, background=None) -> bytes:
+    def get_content(self, script=None, analysis_variables=None, background=None, output_type=None) -> bytes:
         if script is None:
             method = 'download'
         else:
@@ -705,7 +705,8 @@ class QRequest(_Request):
             method=method,
             analysis_variables=analysis_variables,
             background=background,
-            script=script
+            script=script,
+            output_type=output_type
         )
 
         return self.post.content
@@ -714,7 +715,7 @@ class QRequest(_Request):
         self.payload = self.prepare_payload(method='variable', analysis_variables=analysis_variables)
         return self.as_dict
 
-    def prepare_payload(self, method=None, analysis_variables=None, background=None, script=None) -> dict:
+    def prepare_payload(self, method=None, analysis_variables=None, background=None, script=None, output_type=None) -> dict:
         """
         If 'header_delimiter' is not specified, the default is '= '
 
@@ -740,6 +741,8 @@ class QRequest(_Request):
                 ret.update({'analysis_variables': analysis_variables})
             if background is not None:
                 ret.update({'background': background})
+            if output_type is not None:
+                ret.update({'output_type': output_type})
 
         logger.debug(f'{self!r}: payload: {json.dumps(ret, indent=2, default=to_json)}')
 

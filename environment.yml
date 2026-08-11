@@ -3,6 +3,7 @@ dependencies:
   - python
   - pip
   - pandas
+  - pyarrow
   - plotly
   - requests
   - inflection

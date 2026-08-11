@@ -424,6 +424,7 @@ class FC(QRequest):
                      analysis_variables: VariableBlockTypes,
                      background: Optional[fundamentals.SetBlock] = None,
                      include_background: bool = False,
+                     output_type: Optional[str] = "parquet",
                      **kwargs) -> pd.DataFrame:
         """Takes categorical and numeric collections and turns them into a
         dataframe. The dataframe index is set to the entity_collection. The dataframe
@@ -449,7 +450,8 @@ class FC(QRequest):
         if include_background:
             _analysis_variables.append(background)
 
-        content = self.get_content(analysis_variables=_analysis_variables, background=background)
+        content = self.get_content(analysis_variables=_analysis_variables, background=background,
+                                   output_type=output_type)
 
         ret = content_to_dataframe(content=content, **kwargs)
         logger.info(f'{self!r}: dataframe shape {ret.shape}')
