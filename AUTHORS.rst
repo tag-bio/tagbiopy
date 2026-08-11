@@ -2,4 +2,4 @@
 Contributors
 ============
 
-* D <info@tag.bio>
+* D <support@tag.bio>
