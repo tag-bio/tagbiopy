@@ -244,6 +244,8 @@ class FCPacket:
 
         self.name = self._fc.get('name')
         self.url = self._fc.get('url')
+        # Full /s server-info map embedded by the engine; keys are generic (clients don't enumerate them)
+        self.info = self._fc.get('info') or {}
         # Hostname is the url w/o the trailing slash
         self.host = self.url[:-1]
         self.api_key = self._packet.get('api_key')
@@ -359,6 +361,26 @@ class TagbioData:
                 token=self.fc_packet.token
             )
         return self._q_request
+
+    def get_fc_info(self) -> dict:
+        """The full /s server-info map embedded in the packet (no network call).
+
+        Keys mirror the FC's /s response (name, title, version, data_timestamp,
+        entity_count, ...). Values are raw strings as sent by the engine.
+        """
+        return self.fc_packet.info
+
+    def get_data_timestamp(self) -> str:
+        """Human-readable data-snapshot/archive creation time (local tz).
+
+        Mirrors the client-side /s formatting: epoch millis -> '%F %X'.
+        Returns '' if the packet carries no timestamp.
+        """
+        ts = self.fc_packet.info.get('data_timestamp')
+        if ts is None or ts == '':
+            return ''
+        from datetime import datetime
+        return datetime.fromtimestamp(int(ts) // 1000).strftime('%F %X')
 
 
 class TagbioResult:
