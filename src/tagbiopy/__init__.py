@@ -5,7 +5,7 @@ logger = initialize_logger()
 
 # Single source of truth for the package version (read by setup.cfg via
 # `version = attr: tagbiopy.__version__`). Bump this per change, like the R SDK's DESCRIPTION.
-__version__ = "1.0.9"
+__version__ = "1.0.10"
 
 DEFAULT_HOST = 'http://localhost:8000'
 DOMAIN = 'tag.bio'
