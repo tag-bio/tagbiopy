@@ -12,6 +12,20 @@ stages:
         tag: tagbiopy:branch-${CICD_GIT_BRANCH}
         pushRemote: true
         registry: platform-write-registry.dev.tag.bio
+  - name: tag-release
+    steps:
+    - runScriptConfig:
+        image: platform-registry.dev.tag.bio/tagbio-ci-pipeline:branch-master
+        shellScript: node $TAGBIO_CI_PIPELINE_DIR/tag-image.js
+      env:
+        TAG_IMAGE: tagbiopy
+      envFrom:
+      - sourceName: p-zzkk2-platformwriteregistrydevtagbio
+        sourceKey: username
+        targetKey: REGISTRY_USERNAME
+      - sourceName: p-zzkk2-platformwriteregistrydevtagbio
+        sourceKey: password
+        targetKey: REGISTRY_PASSWORD
   - name: trigger-downstream-pipelines
     steps:
     - runScriptConfig:
