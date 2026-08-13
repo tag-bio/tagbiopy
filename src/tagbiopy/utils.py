@@ -84,6 +84,23 @@ def content_to_dataframe(content, index=None, **kwargs) -> pd.DataFrame:
                 "Reading a parquet download requires pyarrow. "
                 "Install with: pip install 'tagbiopy[parquet]' (or pip install pyarrow)") from e
         logger.debug(f'Parquet content turned into a {_df.shape} dataframe')
+        # A multi-value (non-exclusive) categorical is written as parquet LIST<string> and arrives as
+        # list/array cells; the CSV path delivers the same data as one string joined with "; ". Collapse
+        # those columns to that exact form so the parquet frame is shape-identical to CSV -- otherwise
+        # every plugin doing a string op on a multi-value categorical breaks (e.g. `col == ""` on a list).
+        import numpy as np
+
+        def _collapse_cell(v):
+            if v is None:
+                return ""
+            if isinstance(v, (list, tuple, np.ndarray)):
+                return "; ".join("" if x is None else str(x) for x in v)
+            return v
+
+        for _col in _df.columns:
+            if _df[_col].dtype == object and \
+                    _df[_col].map(lambda x: isinstance(x, (list, tuple, np.ndarray))).any():
+                _df[_col] = _df[_col].map(_collapse_cell)
     else:
         logger.debug(f'Encode content')
         encoded_content = str(content, 'utf-8')
