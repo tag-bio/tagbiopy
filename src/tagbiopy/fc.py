@@ -50,6 +50,7 @@ class FC(QRequest):
         # "variable" and "download".
         self._p_request = None
         self._s_request = None
+        self._t_request = None
 
         self._entity_collection = None
         self._summary = None
@@ -199,6 +200,69 @@ class FC(QRequest):
                 token=self.token
             )
         return self._p_request
+
+    @property
+    def t_request(self):
+        if self._t_request is None:
+            from tagbiopy.run_protocol import TRequest
+            self._t_request = TRequest(
+                host=self.host,
+                fc_name=self.fc_name,
+                api_key=self.api_key,
+                token=self.token
+            )
+        return self._t_request
+
+    def get_protocol(self, protocol_name):
+        """Return one protocol's full definition (argument sets, arg schema) via '/p'."""
+        return self.p_request.get_protocol(protocol_name)
+
+    def run_protocol(self, protocol_name, arguments=None, use_cache=True, download=False,
+                     poll_interval=1.0, timeout=600, on_progress=None):
+        """Run a named FC protocol to completion and return its analysis response.
+
+        Discovery-driven: ``protocol_name`` is validated against '/p' (``list_protocols``)
+        before anything is submitted, and argument names are checked against the
+        protocol's argument definitions (unknown names raise, with the valid names in the
+        message). Execution then follows the '/t' job flow the Tag.bio UI uses: submit,
+        poll progress, fetch results.
+
+        :param protocol_name: one of ``self.list_protocols()``
+        :param arguments: dict of argument name -> value, as the protocol's argument
+            definitions describe them (default: no arguments -- protocol defaults apply)
+        :param use_cache: let the FC serve a cached identical run (default True)
+        :param download: True for download-type protocols; returns raw ``bytes``
+        :param poll_interval: seconds between progress polls (default 1.0)
+        :param timeout: client-side ceiling in seconds (default 600); on expiry a
+            :class:`tagbiopy.run_protocol.ProtocolRunTimeout` carries the job token so the
+            run can be picked up or killed later. ``None`` waits forever.
+        :param on_progress: optional callable receiving each progress dict
+        :return: dict (the analysis response) or ``bytes`` when ``download=True``
+        """
+        definition = self.get_protocol(protocol_name)  # raises ValueError on a bad name
+        arguments = dict(arguments or {})
+
+        known = set()
+        for arg_set in (definition or {}).get('argument_sets', []):
+            for arg in arg_set.get('arguments', []):
+                name = (arg.get('argument_definition') or {}).get('name')
+                if name:
+                    known.add(name)
+        unknown = set(arguments) - known
+        if unknown and known:
+            msg = (f'{self!r}: unknown argument(s) {sorted(unknown)} for protocol '
+                   f'{protocol_name!r}. Valid names: {sorted(known)}')
+            log_exception(ValueError, msg)
+
+        protocol_instance = {'name': protocol_name, 'arguments': arguments}
+        return self.t_request.run(
+            protocol_instance,
+            use_cache=use_cache,
+            download=download,
+            poll_interval=poll_interval,
+            timeout=timeout,
+            on_progress=on_progress,
+        )
 
     @property
     def s_request(self):
