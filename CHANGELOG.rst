@@ -5,8 +5,8 @@ Changelog
 See the project's git history and release tags for the full change record
 (the package version is tracked in ``src/tagbiopy/__init__.py``).
 
-2026-10-12 (1.0.12)
-===================
+2026-10-12 (1.1.1)
+==================
 
 * ``tagbiopy.list_data_products()``: the data products on a cluster (the same catalog the Tag.bio UI
   uses); a localhost host lists itself.
