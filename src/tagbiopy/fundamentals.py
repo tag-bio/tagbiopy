@@ -260,6 +260,35 @@ class NumericSlice(VariableBlockImpl, SetBlock):
             log_exception(ValueError, msg)
 
 
+class CategoricalAll(VariableBlockImpl, SetBlock):
+    """Every entity; the default criterion for head() when nothing is filtered."""
+    type_ = 'categorical-all'
+
+    def __init__(self):
+        super().__init__()
+
+
+class Sample(VariableBlockImpl, SetBlock):
+    """A seeded sample of `size` entities from `criterion`; the same seed returns the same entities."""
+    type_ = 'sample'
+
+    def __init__(self, criterion: SetBlock, size: int, seed: int = 1):
+        super().__init__()
+        self.criterion = criterion
+        self.size = int(size)
+        self.seed = int(seed)
+
+
+class CollectionSet(VariableBlockImpl):
+    """Every collection in a collection set, e.g. fc.df.select(CollectionSet('Labs')).run()."""
+    type_ = 'collection-set'
+
+    def __init__(self, collection_set: str, data_type: str = None):
+        super().__init__()
+        self.collection_set = collection_set
+        self.data_type = data_type
+
+
 class DataFrameBlock(VariableBlock):
     pass
 

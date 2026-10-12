@@ -157,6 +157,7 @@ class FC(QRequest):
         """
         self.analysis_variables = []
         self.background = {}
+        self._head = None
         logger.debug(f'{self}: Initialized {self.analysis_variables = }, {self.background = }')
         return self
 
@@ -342,7 +343,7 @@ class FC(QRequest):
 
         for i, arg in enumerate([v for v in args]):
             logger.debug(f'{i}: {arg}')
-            if isinstance(arg, fundamentals.COLLECTION_DATA_FUNCTION_TYPES):
+            if isinstance(arg, (fundamentals.CollectionSet,) + fundamentals.COLLECTION_DATA_FUNCTION_TYPES):
                 self.analysis_variables.append(arg)
             elif isinstance(arg, str):
                 # Go over all data_types and break as soon as the arg is found among the first data_function_type.
@@ -425,6 +426,7 @@ class FC(QRequest):
                      background: Optional[fundamentals.SetBlock] = None,
                      include_background: bool = False,
                      output_type: Optional[str] = "parquet",
+                     categories: bool = False,
                      **kwargs) -> pd.DataFrame:
         """Takes categorical and numeric collections and turns them into a
         dataframe. The dataframe index is set to the entity_collection. The dataframe
@@ -453,11 +455,28 @@ class FC(QRequest):
         content = self.get_content(analysis_variables=_analysis_variables, background=background,
                                    output_type=output_type)
 
-        ret = content_to_dataframe(content=content, **kwargs)
+        ret = content_to_dataframe(content=content, categories=categories, **kwargs)
         logger.info(f'{self!r}: dataframe shape {ret.shape}')
         return ret
 
-    def run(self, **kwargs):
+    def head(self, n: int = 6, seed: int = 1):
+        """Keep a reproducible set of `n` entities: a seeded sample of the entities matching the filters so
+        far (or of all entities). The same n and seed return the same entities; entities have no inherent
+        order, so this is a reproducible subset, not "the first n". Used as
+        self.df.select(...).where(...).head(10).run()
+        """
+        self._head = (int(n), int(seed))
+        return self
+
+    def list_collection_sets(self) -> list:
+        """Names of the collection sets in this data product (needs an engine with the 'collection-set'
+        query method)."""
+        self.payload = {'method': 'collection-set'}
+        return [r['values']['collection-set-name'] for r in self.as_dict.get('results', [])]
+
+    def run(self, categories: bool = False, **kwargs):
+        """Download the query. categories=True turns single_valued categorical columns (listed in the
+        parquet file's metadata) into pandas 'category' dtype; the default keeps plain strings."""
 
         if not self.analysis_variables and not self.background:
             msg = f'{self}: Neither analysis_variables nor background specified'
@@ -468,9 +487,16 @@ class FC(QRequest):
         self.analysis_variables = list(set(self.analysis_variables)) or None
         self.background = self.background or None
 
+        background = self.background
+        if getattr(self, '_head', None):
+            n, seed = self._head
+            background = fundamentals.Sample(criterion=background or fundamentals.CategoricalAll(),
+                                             size=n, seed=seed)
+
         return self.to_dataframe(
             analysis_variables=self.analysis_variables,
-            background=self.background,
+            background=background,
+            categories=categories,
             **kwargs
         )
 
@@ -532,3 +558,17 @@ class FC(QRequest):
             self.background = background
 
         return self
+
+
+def list_data_products(host: str = None, api_key: str = None, token: str = None) -> pd.DataFrame:
+    """The data products on a Tag.bio cluster: the same catalog the Tag.bio UI uses
+    (kung-services/db/capacitors). A localhost host serves one data product, listed as 'localhost'.
+
+    :return: pd.DataFrame with Name, Title, Description, Reference, url, Entity
+    """
+    from tagbiopy.request import Session, _is_localhost
+    session = Session(host=host, api_key=api_key, token=token)
+    if _is_localhost(session.host):
+        return pd.DataFrame([{'Name': 'localhost', 'Title': 'localhost', 'Description': 'local data product',
+                              'Reference': None, 'url': session.host, 'Entity': None}])
+    return session.summary()

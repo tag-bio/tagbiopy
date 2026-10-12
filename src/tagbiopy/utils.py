@@ -61,7 +61,7 @@ def check_list_arg_types(lst: list, arg_type: type, allow_none=True):
     return lst
 
 
-def content_to_dataframe(content, index=None, **kwargs) -> pd.DataFrame:
+def content_to_dataframe(content, index=None, categories=False, **kwargs) -> pd.DataFrame:
     """Take POST content and turns it into a dataframe. Attempt to set dataframe
     index to default ('Unique ID'), and if that fails, just return the dataframe
 
@@ -101,6 +101,15 @@ def content_to_dataframe(content, index=None, **kwargs) -> pd.DataFrame:
             if _df[_col].dtype == object and \
                     _df[_col].map(lambda x: isinstance(x, (list, tuple, np.ndarray))).any():
                 _df[_col] = _df[_col].map(_collapse_cell)
+        # opt-in: single_valued categoricals (named in the file's tagbio.single_valued metadata) as 'category'
+        if categories:
+            import pyarrow.parquet as pq
+            _meta = pq.read_metadata(io.BytesIO(content)).metadata or {}
+            _single_valued = _meta.get(b'tagbio.single_valued')
+            if _single_valued:
+                for _col in json.loads(_single_valued):
+                    if _col in _df.columns:
+                        _df[_col] = _df[_col].astype('category')
     else:
         logger.debug(f'Encode content')
         encoded_content = str(content, 'utf-8')
