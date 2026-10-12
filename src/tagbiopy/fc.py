@@ -6,7 +6,7 @@ import pandas as pd
 
 from tagbiopy import logger
 from tagbiopy import fundamentals
-from tagbiopy.request import QRequest, PRequest, SRequest
+from tagbiopy.request import QRequest, PRequest, SRequest, HEADER_DELIMITER
 from tagbiopy.utils import check_arg_type, content_to_dataframe, extract_data_reference_type, log_exception
 from .where_clause import check_boolean, set_collection, update
 
@@ -538,9 +538,10 @@ class FC(QRequest):
         self.payload = {'method': 'collection-set'}
         return [r['values']['collection-set-name'] for r in self.as_dict.get('results', [])]
 
-    def run(self, categories: bool = False, **kwargs):
+    def run(self, categories: bool = False, datetimes: bool = False, **kwargs):
         """Download the query. categories=True turns single_valued categorical columns (listed in the
-        parquet file's metadata) into pandas 'category' dtype; the default keeps plain strings."""
+        parquet file's metadata) into pandas 'category' dtype; datetimes=True turns numeric columns the
+        FC flags is_timestamp into UTC datetimes. The defaults keep strings and numbers."""
 
         if not self.analysis_variables and not self.background:
             msg = f'{self}: Neither analysis_variables nor background specified'
@@ -557,12 +558,39 @@ class FC(QRequest):
             background = fundamentals.Sample(criterion=background or fundamentals.CategoricalAll(),
                                              size=n, seed=seed)
 
-        return self.to_dataframe(
-            analysis_variables=self.analysis_variables,
+        analysis_variables = self.analysis_variables
+        ret = self.to_dataframe(
+            analysis_variables=analysis_variables,
             background=background,
             categories=categories,
             **kwargs
         )
+        if datetimes:
+            ret = self._convert_timestamps(ret, analysis_variables)
+        return ret
+
+    def _convert_timestamps(self, df: pd.DataFrame, analysis_variables) -> pd.DataFrame:
+        """Numeric columns flagged is_timestamp by the FC's variable API become UTC datetimes; columns that
+        are already datetimes (a native_timestamps server) are left as they are."""
+        collections = sorted({v.collection for v in (analysis_variables or [])
+                              if isinstance(v, fundamentals.Numeric) and getattr(v, 'collection', None)})
+        if not collections:
+            return df
+        result = self.get_variable_obj(analysis_variables=[fundamentals.Numeric(c) for c in collections])
+        for r in result.get('results', []):
+            values = r.get('values', {})
+            if not values.get('is_timestamp'):
+                continue
+            # names arrive as strings (stringify_names) or as {"name": ...} objects
+            collection, variable = (n.get('name') if isinstance(n, dict) else n
+                                    for n in (values.get('collection'), values.get('variable')))
+            candidates = {f'{collection}: {variable}', f'{collection}{HEADER_DELIMITER}{variable}'}
+            if collection == variable:
+                candidates.add(collection)
+            for col in candidates & set(df.columns):
+                if pd.api.types.is_numeric_dtype(df[col]):
+                    df[col] = pd.to_datetime(df[col], unit='ms', utc=True)
+        return df
 
     def where(self, *args):
         """
