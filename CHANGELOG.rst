@@ -16,6 +16,8 @@ See the project's git history and release tags for the full change record
   all entities).
 * ``run(categories=True)``: single_valued categorical columns (from the parquet file metadata) as
   pandas ``category``; the default keeps plain strings.
+* ``run(datetimes=True)``: numeric columns the FC flags ``is_timestamp`` as UTC datetimes, whatever the
+  server's native_timestamps setting; the default keeps epoch milliseconds.
 
 2026-08-11
 ==========
