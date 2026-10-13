@@ -430,15 +430,15 @@ class FC(QRequest):
                 # for numeric variables we specify both collection and variables
                 collection, variable = arg
                 for collection_type in self.available_collection_types:
-                    if arg in self._collections[collection_type]:
+                    if collection in self._collections[collection_type]:
                         self.analysis_variables.append(
                             fundamentals.variable_block_factory(
                                 data_function_type=collection_type)(collection, variable)
                         )
                         break
-                    else:
-                        msg = f'{i}: arg {arg} collection {collection!r} invalid data function type.'
-                        msg += f' Not found among {fundamentals.COLLECTION_DATA_FUNCTION_TYPES}.'
+                else:
+                    msg = f'{i}: arg {arg} collection {collection!r} invalid data function type.'
+                    msg += f' Not found among {fundamentals.COLLECTION_DATA_FUNCTION_TYPES}.'
                     log_exception(TypeError, msg)
             else:
                 msg = f'{i}: arg {arg} should be a string, a tuple or one of '
@@ -491,6 +491,7 @@ class FC(QRequest):
                      include_background: bool = False,
                      output_type: Optional[str] = "parquet",
                      categories: bool = False,
+                     datetimes: bool = False,
                      **kwargs) -> pd.DataFrame:
         """Takes categorical and numeric collections and turns them into a
         dataframe. The dataframe index is set to the entity_collection. The dataframe
@@ -519,7 +520,7 @@ class FC(QRequest):
         content = self.get_content(analysis_variables=_analysis_variables, background=background,
                                    output_type=output_type)
 
-        ret = content_to_dataframe(content=content, categories=categories, **kwargs)
+        ret = content_to_dataframe(content=content, categories=categories, datetimes=datetimes, **kwargs)
         logger.info(f'{self!r}: dataframe shape {ret.shape}')
         return ret
 
@@ -563,9 +564,11 @@ class FC(QRequest):
             analysis_variables=analysis_variables,
             background=background,
             categories=categories,
+            datetimes=datetimes,
             **kwargs
         )
-        if datetimes:
+        # fallback for engines without tagbio.dates metadata: is_timestamp numerics
+        if datetimes and not ret.attrs.get('tagbio_dates_applied'):
             ret = self._convert_timestamps(ret, analysis_variables)
         return ret
 
