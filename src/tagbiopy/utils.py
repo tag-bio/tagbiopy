@@ -107,8 +107,6 @@ def content_to_dataframe(content, index=None, categories=False, datetimes=False,
             import pyarrow.parquet as pq
             _raw_kinds = (pq.read_metadata(io.BytesIO(content)).metadata or {}).get(b'tagbio.dates')
             _kinds = json.loads(_raw_kinds) if _raw_kinds else {}
-            # tells the caller the engine's date kinds were applied, so no fallback lookup is needed
-            _df.attrs['tagbio_dates_applied'] = _raw_kinds is not None
             _units = {'epoch-ms': 'ms', 'epoch-seconds': 's', 'epoch-minutes': 'm'}
             for _col, _kind in _kinds.items():
                 if _col not in _df.columns:

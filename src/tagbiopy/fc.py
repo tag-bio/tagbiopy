@@ -541,8 +541,9 @@ class FC(QRequest):
 
     def run(self, categories: bool = False, datetimes: bool = False, **kwargs):
         """Download the query. categories=True turns single_valued categorical columns (listed in the
-        parquet file's metadata) into pandas 'category' dtype; datetimes=True turns numeric columns the
-        FC flags is_timestamp into UTC datetimes. The defaults keep strings and numbers."""
+        parquet file's metadata) into pandas 'category' dtype; datetimes=True turns date columns (listed in
+        the file's tagbio.dates metadata, archives built on engine 2.99.37+) into UTC datetimes. The
+        defaults keep strings and numbers."""
 
         if not self.analysis_variables and not self.background:
             msg = f'{self}: Neither analysis_variables nor background specified'
@@ -567,33 +568,7 @@ class FC(QRequest):
             datetimes=datetimes,
             **kwargs
         )
-        # fallback for engines without tagbio.dates metadata: is_timestamp numerics
-        if datetimes and not ret.attrs.get('tagbio_dates_applied'):
-            ret = self._convert_timestamps(ret, analysis_variables)
         return ret
-
-    def _convert_timestamps(self, df: pd.DataFrame, analysis_variables) -> pd.DataFrame:
-        """Numeric columns flagged is_timestamp by the FC's variable API become UTC datetimes; columns that
-        are already datetimes (a native_timestamps server) are left as they are."""
-        collections = sorted({v.collection for v in (analysis_variables or [])
-                              if isinstance(v, fundamentals.Numeric) and getattr(v, 'collection', None)})
-        if not collections:
-            return df
-        result = self.get_variable_obj(analysis_variables=[fundamentals.Numeric(c) for c in collections])
-        for r in result.get('results', []):
-            values = r.get('values', {})
-            if not values.get('is_timestamp'):
-                continue
-            # names arrive as strings (stringify_names) or as {"name": ...} objects
-            collection, variable = (n.get('name') if isinstance(n, dict) else n
-                                    for n in (values.get('collection'), values.get('variable')))
-            candidates = {f'{collection}: {variable}', f'{collection}{HEADER_DELIMITER}{variable}'}
-            if collection == variable:
-                candidates.add(collection)
-            for col in candidates & set(df.columns):
-                if pd.api.types.is_numeric_dtype(df[col]):
-                    df[col] = pd.to_datetime(df[col], unit='ms', utc=True)
-        return df
 
     def where(self, *args):
         """
