@@ -335,6 +335,7 @@ class TagbioData:
 
         self._q_request = None
         self._df = None
+        self._content = None
 
         logger.debug(f'{self!r} initialized')
 
@@ -346,11 +347,23 @@ class TagbioData:
     @property
     def df(self) -> pd.DataFrame:
         if self._df is None:
-            content = self.q_request.get_content(script=self.fc_packet.script)
-            self._df = content_to_dataframe(content)
+            self._df = content_to_dataframe(self._get_content())
 
             logger.debug(f'{self}: shape {self._df.shape}, columns: {self._df.columns}')
         return self._df
+
+    def get_df(self, datetimes: bool = False, categories: bool = False) -> pd.DataFrame:
+        """The protocol's data, like .df. datetimes=True turns date columns (listed in the file's
+        tagbio.dates metadata, archives built on engine 2.99.37+) into UTC datetimes; categories=True turns
+        single_valued categoricals into 'category' dtype."""
+        if not datetimes and not categories:
+            return self.df
+        return content_to_dataframe(self._get_content(), categories=categories, datetimes=datetimes)
+
+    def _get_content(self):
+        if self._content is None:
+            self._content = self.q_request.get_content(script=self.fc_packet.script)
+        return self._content
 
     @property
     def q_request(self):

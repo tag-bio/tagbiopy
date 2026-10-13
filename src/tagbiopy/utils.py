@@ -115,7 +115,8 @@ def content_to_dataframe(content, index=None, categories=False, datetimes=False,
                     _df[_col] = pd.to_datetime(_df[_col], unit=_units[_kind], utc=True)
                 elif _kind == 'epoch-days' and pd.api.types.is_numeric_dtype(_df[_col]):
                     _df[_col] = pd.to_datetime(_df[_col].round(), unit='D', utc=True)
-                elif _kind == 'ymd' and _df[_col].dtype == object:
+                # ymd text, or epoch-days/ymd already written as native Parquet dates
+                elif _kind in ('ymd', 'epoch-days') and _df[_col].dtype == object:
                     _df[_col] = pd.to_datetime(_df[_col], format='%Y/%m/%d', errors='coerce', utc=True)
         # opt-in: single_valued categoricals (named in the file's tagbio.single_valued metadata) as 'category'
         if categories:
