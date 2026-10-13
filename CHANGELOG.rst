@@ -5,6 +5,15 @@ Changelog
 See the project's git history and release tags for the full change record
 (the package version is tracked in ``src/tagbiopy/__init__.py``).
 
+2026-10-13 (1.1.2)
+==================
+
+* ``run(datetimes=True)`` also converts day-level dates: ``timestamp-days`` numerics and
+  ``year-month-day`` labels become datetimes (UTC midnight, so they compare directly with timestamp
+  columns), using the date kinds the engine records (2.99.37+); it no longer makes an extra lookup
+  when the export already carries them.
+* ``select(("Collection", "Variable"))`` tuples now select a numeric variable (previously never matched).
+
 2026-10-12 (1.1.1)
 ==================
 
