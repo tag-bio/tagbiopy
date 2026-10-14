@@ -90,11 +90,21 @@ def content_to_dataframe(content, index=None, categories=False, datetimes=False,
         # every plugin doing a string op on a multi-value categorical breaks (e.g. `col == ""` on a list).
         import numpy as np
 
+        import datetime
+
+        # native Parquet dates in a multi-value column keep the engine's yyyy/MM/dd label form
+        def _cell_text(x):
+            if x is None:
+                return ""
+            if isinstance(x, datetime.date):
+                return x.strftime('%Y/%m/%d')
+            return str(x)
+
         def _collapse_cell(v):
             if v is None:
                 return ""
             if isinstance(v, (list, tuple, np.ndarray)):
-                return "; ".join("" if x is None else str(x) for x in v)
+                return "; ".join(_cell_text(x) for x in v)
             return v
 
         for _col in _df.columns:

@@ -238,7 +238,8 @@ class FC(QRequest):
             :class:`tagbiopy.run_protocol.ProtocolRunTimeout` carries the job token so the
             run can be picked up or killed later. ``None`` waits forever.
         :param on_progress: optional callable receiving each progress dict
-        :return: dict (the analysis response) or ``bytes`` when ``download=True``
+        :return: dict (the analysis response), or ``bytes`` when ``download=True`` or the
+            protocol is a plugin (its rendered output: HTML, CSV, PNG, ...)
         """
         definition = self.get_protocol(protocol_name)  # raises ValueError on a bad name
         arguments = dict(arguments or {})

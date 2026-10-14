@@ -71,14 +71,16 @@ class TRequest(_Request):
         """Fetch the finished results once progress says ``results_next``.
 
         Returns the parsed JSON analysis for ordinary protocols, raw ``bytes`` for
-        download-type protocols (``download=True``).
+        download-type protocols (``download=True``) and for plugin protocols, whose result
+        is the rendered output (HTML, CSV, PNG, ...) rather than JSON.
         """
         self.payload = self.prepare_payload(
             token=token, results_next_received=True, use_cache=use_cache,
             download=download or None, zip=zip_)
-        if download:
-            return self.post.content
-        return self.as_dict
+        response = self.post
+        if download or 'json' not in response.headers.get('Content-Type', '').lower():
+            return response.content
+        return response.json()
 
     def kill(self, token):
         """Abort a running job."""

@@ -84,6 +84,16 @@ def run():
     logger.info(msg)
     print_ts(msg, flush=True)
 
+    # An engine test run (startup tests) has no user token; let the SDK reach a named FC directly inside
+    # the cluster, as kung does, instead of through kung.
+    try:
+        with open(args.fc_data) as f:
+            packet_request = json.load(f).get('request') or {}
+        if packet_request.get('test') and not packet_request.get('auth'):
+            os.environ['TAGBIO_PLUGIN_TEST'] = '1'
+    except (OSError, ValueError, AttributeError, TypeError):
+        pass
+
     Run(args)()
 
     logger.info('Done')

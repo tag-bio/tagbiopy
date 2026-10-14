@@ -21,6 +21,10 @@ API_METHODS = ('/a', '/p', '/q', '/s', '/t')
 HEADER_DELIMITER = ': '
 HOST_CONFIG_JSON = os.path.join(os.path.expanduser('~'), '.tagbio.json')
 HOST_CONFIG_YAML = os.path.join(os.path.expanduser('~'), '.tagbio.yaml')
+# in-cluster FC service port and the groups a test-run call carries (the header kung sets for a user)
+FC_SERVICE_PORT = 8000
+TEST_GROUPS = 'developer'
+GROUPS_HEADER = 'X-Tagbio-Groups'
 
 # Host may be given as TAGBIO_HOST_URL or (the deployed notebook's convention) TAGBIO_BASE_URL.
 # When resolving the host, try both names, in this order.
@@ -39,6 +43,16 @@ def _in_plugin_context():
     the same TAGBIO_PLUGIN_CONTEXT sentinel.
     """
     return os.environ.get('TAGBIO_PLUGIN_CONTEXT') == '1'
+
+
+class RemoteFCUnavailable(RuntimeError):
+    """A plugin asked for another data product it cannot reach (no host or signed-in session, e.g.
+    outside the cluster), so a plugin can tell an unreachable data product apart from a bug."""
+
+
+def _in_plugin_test():
+    """An engine test run with no user session; set by the plugin runner from the packet."""
+    return os.environ.get('TAGBIO_PLUGIN_TEST') == '1'
 
 
 def _plugin_config_override():
@@ -335,6 +349,9 @@ class _Request(ABC):
     The subclasses SRequest, PRequest, QRequests, etc. all have the correct url assigned as the character
     in the API method. For example, SRequest handles the '/s' API method.
     """
+    # groups header sent by a test-run call straight to an in-cluster FC (set by _set_host)
+    _test_groups = None
+
     method_ = None
 
     def __init__(self, fc_name: str = None, host: str = None, api_key: str = None,
@@ -404,7 +421,12 @@ class _Request(ABC):
                 # named cross-FC call has no remote host to reach -- error clearly instead of silently
                 # dialing the local server (a plugin auto-test with no host/session hits this).
                 if not host_provided:
-                    raise RuntimeError(
+                    # an engine test run with no user session reaches the FC's in-cluster service
+                    # directly, as kung does
+                    if _in_plugin_test():
+                        self._test_groups = TEST_GROUPS
+                        return f'http://{self.fc_name}:{FC_SERVICE_PORT}'
+                    raise RemoteFCUnavailable(
                         f"Cannot reach named FC '{self.fc_name}': no host is configured (resolved to "
                         "localhost). A named cross-FC call needs a host and a signed-in user session; in "
                         "a plugin auto-test both are absent -- guard the call and degrade gracefully, or "
@@ -521,6 +543,9 @@ class _Request(ABC):
 
         if self.auth is not None:
             kwargs.update({'auth': self.auth})
+
+        if self._test_groups:
+            kwargs.update({'headers': {GROUPS_HEADER: self._test_groups}})
 
         return kwargs
 
