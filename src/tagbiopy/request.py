@@ -21,7 +21,9 @@ API_METHODS = ('/a', '/p', '/q', '/s', '/t')
 HEADER_DELIMITER = ': '
 HOST_CONFIG_JSON = os.path.join(os.path.expanduser('~'), '.tagbio.json')
 HOST_CONFIG_YAML = os.path.join(os.path.expanduser('~'), '.tagbio.yaml')
-# in-cluster FC service port and the groups a test-run call carries (the header kung sets for a user)
+# in-cluster FC service address (full name, so it resolves from notebooks as well as FC pods) and the
+# groups a test-run call carries (the header kung sets for a user)
+FC_SERVICE_DOMAIN = 'tagbio-app.svc.cluster.local'
 FC_SERVICE_PORT = 8000
 TEST_GROUPS = 'developer'
 GROUPS_HEADER = 'X-Tagbio-Groups'
@@ -425,7 +427,9 @@ class _Request(ABC):
                     # directly, as kung does
                     if _in_plugin_test():
                         self._test_groups = TEST_GROUPS
-                        return f'http://{self.fc_name}:{FC_SERVICE_PORT}'
+                        direct = f'http://{self.fc_name}.{FC_SERVICE_DOMAIN}:{FC_SERVICE_PORT}'
+                        print(f'test run: reaching {self.fc_name} directly at {direct}', flush=True)
+                        return direct
                     raise RemoteFCUnavailable(
                         f"Cannot reach named FC '{self.fc_name}': no host is configured (resolved to "
                         "localhost). A named cross-FC call needs a host and a signed-in user session; in "
