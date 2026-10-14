@@ -5,6 +5,13 @@ Changelog
 See the project's git history and release tags for the full change record
 (the package version is tracked in ``src/tagbiopy/__init__.py``).
 
+2026-10-14 (1.1.8)
+==================
+
+* Plugins get dates by default: a plugin's ``.df`` and ``get_df()`` turn date columns into UTC
+  datetimes (archives built on engine 2.99.37+). ``get_df(datetimes=False)`` keeps the raw values.
+  ``FC.run()`` and queries are unchanged.
+
 2026-10-13 (1.1.2)
 ==================
 
