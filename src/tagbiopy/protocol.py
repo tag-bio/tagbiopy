@@ -347,16 +347,16 @@ class TagbioData:
     @property
     def df(self) -> pd.DataFrame:
         if self._df is None:
-            self._df = content_to_dataframe(self._get_content())
+            self._df = content_to_dataframe(self._get_content(), datetimes=True)
 
             logger.debug(f'{self}: shape {self._df.shape}, columns: {self._df.columns}')
         return self._df
 
-    def get_df(self, datetimes: bool = False, categories: bool = False) -> pd.DataFrame:
-        """The protocol's data, like .df. datetimes=True turns date columns (listed in the file's
-        tagbio.dates metadata, archives built on engine 2.99.37+) into UTC datetimes; categories=True turns
+    def get_df(self, datetimes: bool = True, categories: bool = False) -> pd.DataFrame:
+        """The protocol's data, like .df. Date columns (listed in the file's tagbio.dates metadata, archives
+        built on engine 2.99.37+) become UTC datetimes unless datetimes=False; categories=True turns
         single_valued categoricals into 'category' dtype."""
-        if not datetimes and not categories:
+        if datetimes and not categories:
             return self.df
         return content_to_dataframe(self._get_content(), categories=categories, datetimes=datetimes)
 
