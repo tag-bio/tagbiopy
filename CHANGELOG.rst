@@ -5,6 +5,13 @@ Changelog
 See the project's git history and release tags for the full change record
 (the package version is tracked in ``src/tagbiopy/__init__.py``).
 
+2026-10-15 (1.1.9)
+==================
+
+* Dates are always dates: with engine 2.100.2, every date column from a datetime parser arrives as a UTC
+  datetime from ``run()``, ``.df`` and ``get_df()``. The ``datetimes`` argument is accepted but ignored.
+  Against older engines, those columns arrive as plain numbers / ``yyyy/MM/dd`` text.
+
 2026-10-14 (1.1.8)
 ==================
 
