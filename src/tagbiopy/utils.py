@@ -67,6 +67,7 @@ def content_to_dataframe(content, index=None, categories=False, datetimes=False,
 
     :param content: requests.post.content
     :param index: str,
+    :param datetimes: ignored; kept for compatibility (native Parquet dates always arrive as datetimes)
     :param kwargs: dict, pd.DataFrame.read_csv parameters
     :return: pd.DataFrame
     """
@@ -111,23 +112,11 @@ def content_to_dataframe(content, index=None, categories=False, datetimes=False,
             if _df[_col].dtype == object and \
                     _df[_col].map(lambda x: isinstance(x, (list, tuple, np.ndarray))).any():
                 _df[_col] = _df[_col].map(_collapse_cell)
-        # opt-in: date-like columns (the file's tagbio.dates metadata, set by datetime parsers) as datetimes;
-        # days are rounded because the engine counts them from local midnight
-        if datetimes:
-            import pyarrow.parquet as pq
-            _raw_kinds = (pq.read_metadata(io.BytesIO(content)).metadata or {}).get(b'tagbio.dates')
-            _kinds = json.loads(_raw_kinds) if _raw_kinds else {}
-            _units = {'epoch-ms': 'ms', 'epoch-seconds': 's', 'epoch-minutes': 'm'}
-            for _col, _kind in _kinds.items():
-                if _col not in _df.columns:
-                    continue
-                if _kind in _units and pd.api.types.is_numeric_dtype(_df[_col]):
-                    _df[_col] = pd.to_datetime(_df[_col], unit=_units[_kind], utc=True)
-                elif _kind == 'epoch-days' and pd.api.types.is_numeric_dtype(_df[_col]):
-                    _df[_col] = pd.to_datetime(_df[_col].round(), unit='D', utc=True)
-                # ymd text, or epoch-days/ymd already written as native Parquet dates
-                elif _kind in ('ymd', 'epoch-days') and _df[_col].dtype == object:
-                    _df[_col] = pd.to_datetime(_df[_col], format='%Y/%m/%d', errors='coerce', utc=True)
+        # native Parquet DATE columns arrive as Python date objects; make them UTC-midnight datetimes so
+        # they compare and subtract directly with the (UTC) timestamp columns
+        for _col in _df.columns:
+            if _df[_col].dtype == object and _df[_col].map(lambda x: isinstance(x, datetime.date)).any():
+                _df[_col] = pd.to_datetime(_df[_col], utc=True)
         # opt-in: single_valued categoricals (named in the file's tagbio.single_valued metadata) as 'category'
         if categories:
             import pyarrow.parquet as pq

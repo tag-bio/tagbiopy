@@ -521,7 +521,7 @@ class FC(QRequest):
         content = self.get_content(analysis_variables=_analysis_variables, background=background,
                                    output_type=output_type)
 
-        ret = content_to_dataframe(content=content, categories=categories, datetimes=datetimes, **kwargs)
+        ret = content_to_dataframe(content=content, categories=categories, **kwargs)
         logger.info(f'{self!r}: dataframe shape {ret.shape}')
         return ret
 
@@ -542,9 +542,8 @@ class FC(QRequest):
 
     def run(self, categories: bool = False, datetimes: bool = False, **kwargs):
         """Download the query. categories=True turns single_valued categorical columns (listed in the
-        parquet file's metadata) into pandas 'category' dtype; datetimes=True turns date columns (listed in
-        the file's tagbio.dates metadata, archives built on engine 2.99.37+) into UTC datetimes. The
-        defaults keep strings and numbers."""
+        parquet file's metadata) into pandas 'category' dtype. Date columns arrive as UTC datetimes from
+        engine 2.100.2; datetimes is ignored, kept for compatibility."""
 
         if not self.analysis_variables and not self.background:
             msg = f'{self}: Neither analysis_variables nor background specified'
@@ -566,7 +565,6 @@ class FC(QRequest):
             analysis_variables=analysis_variables,
             background=background,
             categories=categories,
-            datetimes=datetimes,
             **kwargs
         )
         return ret
