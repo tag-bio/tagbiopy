@@ -61,17 +61,32 @@ def check_list_arg_types(lst: list, arg_type: type, allow_none=True):
     return lst
 
 
-def content_to_dataframe(content, index=None, categories=False, datetimes=False, **kwargs) -> pd.DataFrame:
+#: arguments of earlier versions that are accepted and ignored, so older code keeps working until it is updated
+RETIRED_ARGUMENTS = ('datetimes',)
+
+
+def drop_retired_arguments(kwargs: dict, where: str) -> dict:
+    """Remove retired arguments from kwargs (logging a deprecation warning) before they reach pandas."""
+    for name in RETIRED_ARGUMENTS:
+        if name in kwargs:
+            kwargs.pop(name)
+            logger.warning(f'{where}: the {name!r} argument is retired and ignored (dates always arrive as '
+                           f'datetimes); remove it -- it will be rejected in a future version')
+    return kwargs
+
+
+def content_to_dataframe(content, index=None, categories=False, **kwargs) -> pd.DataFrame:
     """Take POST content and turns it into a dataframe. Attempt to set dataframe
     index to default ('Unique ID'), and if that fails, just return the dataframe
 
     :param content: requests.post.content
     :param index: str,
-    :param datetimes: ignored; kept for compatibility (native Parquet dates always arrive as datetimes)
     :param kwargs: dict, pd.DataFrame.read_csv parameters
     :return: pd.DataFrame
     """
     import io
+
+    drop_retired_arguments(kwargs, 'content_to_dataframe')
 
     # Sniff the response bytes rather than trusting the requested format: parquet files begin with the
     # magic bytes b'PAR1'. Robust to FC version skew -- an older FC that ignored output_type returns CSV
