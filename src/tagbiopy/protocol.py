@@ -4,7 +4,7 @@ import pandas as pd
 
 from tagbiopy import logger
 from tagbiopy.request import QRequest
-from tagbiopy.utils import content_to_dataframe, create_temp_file, list_attributes, load_json, log_exception, now
+from tagbiopy.utils import content_to_dataframe, create_temp_file, drop_retired_arguments, list_attributes, load_json, log_exception, now
 from tagbiopy.utils import ipynb_to_html
 
 
@@ -352,10 +352,17 @@ class TagbioData:
             logger.debug(f'{self}: shape {self._df.shape}, columns: {self._df.columns}')
         return self._df
 
-    def get_df(self, datetimes: bool = True, categories: bool = False) -> pd.DataFrame:
+    def get_df(self, *retired, categories: bool = False, **kwargs) -> pd.DataFrame:
         """The protocol's data, like .df. categories=True turns single_valued categoricals into 'category'
-        dtype. Date columns arrive as UTC datetimes from engine 2.100.2; datetimes is ignored, kept for
-        compatibility."""
+        dtype. Date columns arrive as UTC datetimes."""
+        # earlier versions were get_df(datetimes, categories): a positional datetimes is ignored, a second positional is categories
+        if retired:
+            kwargs.setdefault('datetimes', retired[0])
+            if len(retired) > 1:
+                categories = retired[1]
+        drop_retired_arguments(kwargs, 'get_df')
+        if kwargs:
+            raise TypeError(f'get_df() got unexpected keyword arguments: {sorted(kwargs)}')
         if not categories:
             return self.df
         return content_to_dataframe(self._get_content(), categories=categories)

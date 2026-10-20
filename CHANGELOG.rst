@@ -5,6 +5,13 @@ Changelog
 See the project's git history and release tags for the full change record
 (the package version is tracked in ``src/tagbiopy/__init__.py``).
 
+2026-10-20 (1.1.10)
+===================
+
+* The ``datetimes`` argument is retired: ``run()``, ``to_dataframe()``, ``get_df()`` and
+  ``content_to_dataframe()`` no longer list it. Calls that still pass it keep working; it is ignored with a
+  deprecation warning in the log. Remove it from your code: a future version will reject it.
+
 2026-10-15 (1.1.9)
 ==================
 

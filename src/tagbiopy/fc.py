@@ -7,7 +7,7 @@ import pandas as pd
 from tagbiopy import logger
 from tagbiopy import fundamentals
 from tagbiopy.request import QRequest, PRequest, SRequest, HEADER_DELIMITER
-from tagbiopy.utils import check_arg_type, content_to_dataframe, extract_data_reference_type, log_exception
+from tagbiopy.utils import check_arg_type, content_to_dataframe, drop_retired_arguments, extract_data_reference_type, log_exception
 from .where_clause import check_boolean, set_collection, update
 
 VariableBlockTypes = Union[fundamentals.VariableBlock, List[fundamentals.VariableBlock]]
@@ -492,7 +492,6 @@ class FC(QRequest):
                      include_background: bool = False,
                      output_type: Optional[str] = "parquet",
                      categories: bool = False,
-                     datetimes: bool = False,
                      **kwargs) -> pd.DataFrame:
         """Takes categorical and numeric collections and turns them into a
         dataframe. The dataframe index is set to the entity_collection. The dataframe
@@ -505,6 +504,7 @@ class FC(QRequest):
         :return: pd.DataFrame, with collections as columns, and entity_collection set as index
         """
         logger.info(f'{self!r}: to_dataframe')
+        drop_retired_arguments(kwargs, 'to_dataframe')
 
         if background is None and include_background is True:
             msg = f'{self!r}: Invalid background selection: {background=}, {include_background=}'
@@ -540,10 +540,10 @@ class FC(QRequest):
         self.payload = {'method': 'collection-set'}
         return [r['values']['collection-set-name'] for r in self.as_dict.get('results', [])]
 
-    def run(self, categories: bool = False, datetimes: bool = False, **kwargs):
+    def run(self, categories: bool = False, **kwargs):
         """Download the query. categories=True turns single_valued categorical columns (listed in the
-        parquet file's metadata) into pandas 'category' dtype. Date columns arrive as UTC datetimes from
-        engine 2.100.2; datetimes is ignored, kept for compatibility."""
+        parquet file's metadata) into pandas 'category' dtype. Date columns arrive as UTC datetimes."""
+        drop_retired_arguments(kwargs, 'run')
 
         if not self.analysis_variables and not self.background:
             msg = f'{self}: Neither analysis_variables nor background specified'
