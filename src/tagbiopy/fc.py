@@ -1,4 +1,5 @@
 import json
+import re
 
 from typing import List, Union, Optional
 
@@ -9,6 +10,9 @@ from tagbiopy import fundamentals
 from tagbiopy.request import QRequest, PRequest, SRequest, HEADER_DELIMITER
 from tagbiopy.utils import check_arg_type, content_to_dataframe, drop_retired_arguments, extract_data_reference_type, log_exception
 from .where_clause import check_boolean, set_collection, update
+
+# collection queries return at most 50,000 collections unless told otherwise
+COLLECTION_LIMIT = 1000000000
 
 VariableBlockTypes = Union[fundamentals.VariableBlock, List[fundamentals.VariableBlock]]
 CollectionDataFunctionTypes = Union[fundamentals.COLLECTION_DATA_FUNCTION_TYPES]
@@ -71,7 +75,8 @@ class FC(QRequest):
         param variables: VariableBlock or a list of VariableBlocks
         :return: dict
         """
-        ret = [self.entity_collection().as_dict]
+        entity = self._entity_reference()
+        ret = [entity.as_dict] if entity is not None else []
         if isinstance(variables, fundamentals.ALL_COLLECTION_DATA_FUNCTION_TYPES):
             ret.append(variables)
         elif isinstance(variables, list):
@@ -169,6 +174,14 @@ class FC(QRequest):
             self._entity_collection = self.get_collection(fundamentals.Categorical(name))
 
         return self._entity_collection
+
+    def _entity_reference(self):
+        """The entity-ID collection as a data function, or None when the FC's entity ID isn't one of its collections
+        (downloads still carry the entity ID column)."""
+        if str(self._collections['entity']) not in self._collections.get(fundamentals.Categorical.type_, {}):
+            logger.info(f'{self!r}: entity ID is not a collection; downloading without it as a selected column')
+            return None
+        return self.entity_collection()
 
     @property
     def info(self) -> dict:
@@ -442,9 +455,9 @@ class FC(QRequest):
                     msg += f' Not found among {fundamentals.COLLECTION_DATA_FUNCTION_TYPES}.'
                     log_exception(TypeError, msg)
             else:
-                msg = f'{i}: arg {arg} should be a string, a tuple or one of '
-                msg += fundamentals.COLLECTION_DATA_FUNCTION_TYPES
-                msg += '.'
+                msg = f'{i}: arg {arg!r} should be a string, a tuple or one of '
+                msg += f'{[t.__name__ for t in fundamentals.COLLECTION_DATA_FUNCTION_TYPES]} (pass several as separate arguments).'
+                log_exception(TypeError, msg)
 
         self.analysis_variables = list(set(self.analysis_variables)) or None
 
@@ -534,11 +547,36 @@ class FC(QRequest):
         self._head = (int(n), int(seed))
         return self
 
-    def list_collection_sets(self) -> list:
+    def list_collection_sets(self, pattern: str = None) -> list:
         """Names of the collection sets in this data product (needs an engine with the 'collection-set'
-        query method)."""
+        query method). pattern: optional regular expression (case-insensitive) the names must match."""
         self.payload = {'method': 'collection-set'}
-        return [r['values']['collection-set-name'] for r in self.as_dict.get('results', [])]
+        names = [r['values']['collection-set-name'] for r in self.as_dict.get('results', [])]
+        if pattern is not None:
+            names = [n for n in names if re.search(pattern, n, flags=re.IGNORECASE)]
+        return names
+
+    def list_collection_set_members(self, collection_set: str, data_type: str = None) -> pd.DataFrame:
+        """The collections in a collection set, without downloading their data: one row per collection with its
+        data type, number of variables and number of entities with a value. data_type: optional
+        'categorical' or 'numeric' to keep only that type."""
+        payload = self.prepare_payload(method='collection',
+                                       analysis_variables=[fundamentals.CollectionSet(collection_set)])
+        payload['limit'] = COLLECTION_LIMIT
+        self.payload = payload
+        rows = []
+        for r in self.as_dict.get('results', []):
+            v = r['values']
+            name = v['collection']['name'] if isinstance(v.get('collection'), dict) else v.get('collection')
+            rows.append({'collection': name,
+                         'data_type': v.get('data_reference_type') or v.get('data_function_type'),
+                         'variables': v.get('collection-size'),
+                         'entities': v.get('collection-entity-count')})
+        ret = pd.DataFrame(rows, columns=['collection', 'data_type', 'variables', 'entities'])
+        # filtered here: the engine treats a set filtered down to nothing as "every collection"
+        if data_type is not None:
+            ret = ret[ret['data_type'] == data_type].reset_index(drop=True)
+        return ret
 
     def run(self, categories: bool = False, **kwargs):
         """Download the query. categories=True turns single_valued categorical columns (listed in the
