@@ -768,6 +768,8 @@ class QRequest(_Request):
 
             if analysis_variables is not None:
                 ret.update({'analysis_variables': analysis_variables})
+                # an explicit selection that matches nothing returns nothing, not every collection
+                ret.update({'analysis_variables_all': False})
             if background is not None:
                 ret.update({'background': background})
             if output_type is not None:
