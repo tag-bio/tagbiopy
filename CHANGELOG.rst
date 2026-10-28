@@ -5,6 +5,13 @@ Changelog
 See the project's git history and release tags for the full change record
 (the package version is tracked in ``src/tagbiopy/__init__.py``).
 
+2026-10-28 (1.1.12)
+===================
+
+* Logical collections (marked by the engine and written as native Parquet booleans) come back with pandas'
+  nullable ``boolean`` dtype, with or without missing values.
+* ``categories=True`` converts only text columns; date and logical columns keep their own types.
+
 2026-10-20 (1.1.10)
 ===================
 
