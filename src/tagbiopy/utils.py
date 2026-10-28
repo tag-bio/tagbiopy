@@ -132,14 +132,21 @@ def content_to_dataframe(content, index=None, categories=False, **kwargs) -> pd.
         for _col in _df.columns:
             if _df[_col].dtype == object and _df[_col].map(lambda x: isinstance(x, datetime.date)).any():
                 _df[_col] = pd.to_datetime(_df[_col], utc=True)
-        # opt-in: single_valued categoricals (named in the file's tagbio.single_valued metadata) as 'category'
+        # native Parquet BOOLEAN columns (logical collections) arrive as bool, or as object when they hold nulls;
+        # give them pandas' nullable 'boolean' dtype either way
+        for _col in _df.columns:
+            if _df[_col].dtype == bool or (_df[_col].dtype == object and _df[_col].notna().any() and
+                                           _df[_col].dropna().map(lambda x: isinstance(x, (bool, np.bool_))).all()):
+                _df[_col] = _df[_col].astype('boolean')
+        # opt-in: single_valued text categoricals (named in the file's tagbio.single_valued metadata) as
+        # 'category'; date and logical columns keep their own types
         if categories:
             import pyarrow.parquet as pq
             _meta = pq.read_metadata(io.BytesIO(content)).metadata or {}
             _single_valued = _meta.get(b'tagbio.single_valued')
             if _single_valued:
                 for _col in json.loads(_single_valued):
-                    if _col in _df.columns:
+                    if _col in _df.columns and _df[_col].dtype == object:
                         _df[_col] = _df[_col].astype('category')
     else:
         logger.debug(f'Encode content')
