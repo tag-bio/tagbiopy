@@ -5,6 +5,18 @@ Changelog
 See the project's git history and release tags for the full change record
 (the package version is tracked in ``src/tagbiopy/__init__.py``).
 
+2026-10-29 (1.1.13)
+===================
+
+* ``FC.data_dictionary()`` describes a data product's data model as a DataFrame, one row per collection: its column
+  name(s) in a pull, data type, kind (text, number, date or logical), single- or multi-valued, value and entity
+  counts, the values of small categoricals, and its collection sets. ``variables=True`` lists one row per variable
+  for named collections or a collection set. Only metadata is fetched. The product's name, title, entity names
+  and entity count are in ``.attrs['data_product']``. It matches the FC's MCP ``fc://data-model`` resource.
+  A numeric collection with more than ``max_levels`` (20) variables shows its column name pattern,
+  e.g. ``Copy Number: <variable> (24,813 variables)``, instead of listing every column.
+* ``list_collection_set_members()`` no longer fails on compound collection names.
+
 2026-10-28 (1.1.12)
 ===================
 
