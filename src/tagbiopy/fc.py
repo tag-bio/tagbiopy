@@ -14,6 +14,13 @@ from .where_clause import check_boolean, set_collection, update
 # collection queries return at most 50,000 collections unless told otherwise
 COLLECTION_LIMIT = 1000000000
 
+
+def _flux_name(n):
+    """Compound names ({"operator": " | ", "names": [...]}) display as their parts joined by the operator."""
+    if isinstance(n, dict) and 'names' in n:
+        return n.get('operator', '').join(_flux_name(x) for x in n['names'])
+    return '' if n is None else str(n)
+
 VariableBlockTypes = Union[fundamentals.VariableBlock, List[fundamentals.VariableBlock]]
 CollectionDataFunctionTypes = Union[fundamentals.COLLECTION_DATA_FUNCTION_TYPES]
 CollectionTypes = Union[fundamentals.COLLECTION_TYPES]
@@ -567,7 +574,7 @@ class FC(QRequest):
         rows = []
         for r in self.as_dict.get('results', []):
             v = r['values']
-            name = v['collection']['name'] if isinstance(v.get('collection'), dict) else v.get('collection')
+            name = _flux_name(v['collection']['name'] if isinstance(v.get('collection'), dict) else v.get('collection'))
             rows.append({'collection': name,
                          'data_type': v.get('data_reference_type') or v.get('data_function_type'),
                          'variables': v.get('collection-size'),
@@ -577,6 +584,133 @@ class FC(QRequest):
         if data_type is not None:
             ret = ret[ret['data_type'] == data_type].reset_index(drop=True)
         return ret
+
+    def data_dictionary(self, collections: list = None, collection_set: str = None, variables: bool = False,
+                        max_levels: int = 20, max_sets: int = 500) -> pd.DataFrame:
+        """Describe this data product's data model: one row per collection with how to select it, the column(s)
+        it arrives as, its kind (text, logical, date, number), entity coverage, its collection sets and, for
+        small categoricals, its values. The same model the FC's MCP endpoint serves as fc://data-model. Only
+        metadata is fetched, never entity rows.
+
+        collections: optional list of collection names; collection_set: optional set name.
+        variables=True returns one row per variable (numeric variable or categorical value) instead, and needs
+        collections or collection_set, since some data products have millions of variables.
+        max_levels: categoricals with at most this many values list them in 'levels'; numerics with at most this
+            many variables list their column names in 'column' (larger ones show the name pattern).
+        max_sets: set membership is filled in when the product has at most this many sets.
+        The product's name, title, entity names and entity count are in the result's .attrs['data_product']."""
+        if variables and collections is None and collection_set is None:
+            raise ValueError('variables=True needs collections or collection_set: some data products have '
+                             'millions of variables.')
+        if isinstance(collections, str):
+            collections = [collections]
+        info = self.info
+        entity_count = pd.to_numeric(info.get('entity_count'), errors='coerce')
+        product = {k: info.get(k) for k in ('name', 'title', 'entity_name_singular', 'entity_name_plural')}
+        product['entity_count'] = entity_count
+
+        def query(payload):
+            self.payload = payload
+            return self.as_dict.get('results', [])
+
+        # ---- collections
+        if collection_set is not None:
+            payload = self.prepare_payload(method='collection',
+                                           analysis_variables=[fundamentals.CollectionSet(collection_set)])
+        else:
+            payload = {'method': 'collection'}
+        payload['limit'] = COLLECTION_LIMIT
+        rows = []
+        for r in query(payload):
+            v = r['values']
+            coll = v.get('collection') if isinstance(v.get('collection'), dict) else {'name': v.get('collection')}
+            rows.append({'collection': _flux_name(coll.get('name')),
+                         'data_type': v.get('data_reference_type') or v.get('data_function_type'),
+                         'single_valued': bool(coll.get('single_valued')),
+                         'logical': bool(coll.get('logical')),
+                         'date_kind': coll.get('date_kind'),
+                         'n_values': v.get('collection-size'),
+                         'n_entities': v.get('collection-entity-count')})
+        dd = pd.DataFrame(rows, columns=['collection', 'data_type', 'single_valued', 'logical', 'date_kind',
+                                         'n_values', 'n_entities'])
+        if collections is not None:
+            missing = sorted(set(collections) - set(dd['collection']))
+            if missing:
+                logger.warning(f'No collection named: {", ".join(missing)}')
+            dd = dd[dd['collection'].isin(collections)].reset_index(drop=True)
+
+        # ---- variables of small collections (levels, numeric column names), or everything in scope when variables
+        want = pd.Series(True, index=dd.index) if variables else \
+            dd['data_type'].isin(['categorical', 'numeric']) & (dd['n_values'] <= max_levels)
+        var_rows = []
+        if want.any() and (variables or dd.loc[want, 'n_values'].sum() <= 100000):
+            fns = [{'data_function_type': t, 'collection': c}
+                   for c, t in zip(dd.loc[want, 'collection'], dd.loc[want, 'data_type'])]
+            for r in query({'method': 'variable', 'variables': fns, 'limit': COLLECTION_LIMIT}):
+                v = r['values']
+                var_rows.append({'collection': _flux_name(v['collection']['name']),
+                                 'variable': _flux_name(v['variable']['name']),
+                                 'data_type': v.get('data_reference_type'),
+                                 'n_entities': v.get('variable-size'),
+                                 'date_kind': v['variable'].get('date_kind')})
+        vars_df = pd.DataFrame(var_rows, columns=['collection', 'variable', 'data_type', 'n_entities', 'date_kind'])
+
+        def column_name(collection, variable, data_type):
+            return collection if data_type == 'categorical' or variable == collection else f'{collection}: {variable}'
+
+        if variables:
+            vars_df['column'] = [column_name(c, v, t) for c, v, t in
+                                 zip(vars_df['collection'], vars_df['variable'], vars_df['data_type'])]
+            out = vars_df[['collection', 'variable', 'column', 'data_type', 'n_entities', 'date_kind']] \
+                .sort_values(['collection', 'n_entities'], ascending=[True, False]).reset_index(drop=True)
+            out.attrs['data_product'] = product
+            return out
+
+        num = vars_df[vars_df['data_type'] == 'numeric']
+        columns = {c: '; '.join(sorted(column_name(c, v, 'numeric') for v in g['variable']))
+                   for c, g in num.groupby('collection')}
+        numeric_dates = {c for c, g in num.groupby('collection') if g['date_kind'].notna().any()}
+        cat = vars_df[vars_df['data_type'] == 'categorical']
+        levels = {c: '; '.join(sorted(g['variable'])) for c, g in cat.groupby('collection')}
+
+        # ---- collection set membership (one members query per set)
+        try:
+            set_names = self.list_collection_sets()
+        except Exception:
+            set_names = []
+        sets = {c: None for c in dd['collection']}
+        if set_names and len(set_names) <= max_sets:
+            sets = {c: '' for c in dd['collection']}
+            for s in set_names:
+                for c in self.list_collection_set_members(s)['collection']:
+                    if c in sets:
+                        sets[c] = s if not sets[c] else f'{sets[c]}; {s}'
+        elif len(set_names) > max_sets:
+            logger.warning(f'This data product has {len(set_names)} collection sets (more than max_sets={max_sets}): '
+                           'collection_sets left empty. Use collection_set= to describe one set.')
+
+        def kind(row):
+            if row['logical']:
+                return 'logical'
+            if isinstance(row['date_kind'], str) or row['collection'] in numeric_dates:
+                return 'date'
+            return 'text' if row['data_type'] == 'categorical' else 'number'
+
+        out = pd.DataFrame({
+            'collection': dd['collection'],
+            'column': [c if t != 'numeric' else columns.get(c, f"{c}: <variable> ({n:,.0f} variable{'' if n == 1 else 's'})")
+                       for c, t, n in zip(dd['collection'], dd['data_type'], dd['n_values'])],
+            'data_type': dd['data_type'],
+            'kind': dd.apply(kind, axis=1) if len(dd) else pd.Series(dtype=object),
+            'single_valued': [sv if t == 'categorical' else None for sv, t in zip(dd['single_valued'], dd['data_type'])],
+            'n_values': dd['n_values'],
+            'n_entities': dd['n_entities'],
+            'pct_entities': (100 * pd.to_numeric(dd['n_entities']) / entity_count).round(1),
+            'levels': [levels.get(c) for c in dd['collection']],
+            'collection_sets': [sets.get(c) for c in dd['collection']],
+        }).sort_values('collection').reset_index(drop=True)
+        out.attrs['data_product'] = product
+        return out
 
     def run(self, categories: bool = False, **kwargs):
         """Download the query. categories=True turns single_valued categorical columns (listed in the
