@@ -15,6 +15,9 @@ from .where_clause import check_boolean, set_collection, update
 COLLECTION_LIMIT = 1000000000
 
 
+MATRIX_TYPES = ['numeric-matrix', 'categorical-matrix']
+
+
 def _flux_name(n):
     """Compound names ({"operator": " | ", "names": [...]}) display as their parts joined by the operator."""
     if isinstance(n, dict) and 'names' in n:
@@ -641,7 +644,7 @@ class FC(QRequest):
 
         # ---- variables of small collections (levels, numeric column names), or everything in scope when variables
         want = pd.Series(True, index=dd.index) if variables else \
-            dd['data_type'].isin(['categorical', 'numeric']) & (dd['n_values'] <= max_levels)
+            dd['data_type'].isin(['categorical', 'numeric'] + MATRIX_TYPES) & (dd['n_values'] <= max_levels)
         var_rows = []
         if want.any() and (variables or dd.loc[want, 'n_values'].sum() <= 100000):
             fns = [{'data_function_type': t, 'collection': c}
@@ -655,7 +658,10 @@ class FC(QRequest):
                                  'date_kind': v['variable'].get('date_kind')})
         vars_df = pd.DataFrame(var_rows, columns=['collection', 'variable', 'data_type', 'n_entities', 'date_kind'])
 
+        # a matrix variable arrives as one column per header: 'Variable: <column>' (time points, genes, ...)
         def column_name(collection, variable, data_type):
+            if data_type in MATRIX_TYPES:
+                return f'{variable}: <column>'
             return collection if data_type == 'categorical' or variable == collection else f'{collection}: {variable}'
 
         if variables:
@@ -666,8 +672,8 @@ class FC(QRequest):
             out.attrs['data_product'] = product
             return out
 
-        num = vars_df[vars_df['data_type'] == 'numeric']
-        columns = {c: '; '.join(sorted(column_name(c, v, 'numeric') for v in g['variable']))
+        num = vars_df[vars_df['data_type'].isin(['numeric'] + MATRIX_TYPES)]
+        columns = {c: '; '.join(sorted(column_name(c, v, t) for v, t in zip(g['variable'], g['data_type'])))
                    for c, g in num.groupby('collection')}
         numeric_dates = {c for c, g in num.groupby('collection') if g['date_kind'].notna().any()}
         cat = vars_df[vars_df['data_type'] == 'categorical']
@@ -698,7 +704,9 @@ class FC(QRequest):
 
         out = pd.DataFrame({
             'collection': dd['collection'],
-            'column': [c if t != 'numeric' else columns.get(c, f"{c}: <variable> ({n:,.0f} variable{'' if n == 1 else 's'})")
+            'column': [c if t != 'numeric' and t not in MATRIX_TYPES else
+                       columns.get(c, f"{'<variable>: <column>' if t in MATRIX_TYPES else c + ': <variable>'}"
+                                      f" ({n:,.0f} variable{'' if n == 1 else 's'})")
                        for c, t, n in zip(dd['collection'], dd['data_type'], dd['n_values'])],
             'data_type': dd['data_type'],
             'kind': dd.apply(kind, axis=1) if len(dd) else pd.Series(dtype=object),

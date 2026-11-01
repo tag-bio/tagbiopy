@@ -5,6 +5,13 @@ Changelog
 See the project's git history and release tags for the full change record
 (the package version is tracked in ``src/tagbiopy/__init__.py``).
 
+2026-10-30 (1.1.14)
+===================
+
+* ``data_dictionary()`` describes matrix collections: their variables (``CRP: <column>``, one column per header
+  such as a time point), entity counts, and ``kind`` = ``number`` (numeric matrices, and categorical matrices,
+  whose one-hot cells download as 1/0). ``variables=True`` lists a matrix's variables.
+
 2026-10-29 (1.1.13)
 ===================
 
