@@ -100,7 +100,7 @@ class RunNotebook(SDKInput):
 
         # Create report from jupyter notebook
         logger.debug(f'{self}: Create report from {self.modified_notebook_file_executed}')
-        ipynb_to_html(self.modified_notebook_file_executed, self.tag_result.path)
+        ipynb_to_html(self.modified_notebook_file_executed, self.tag_result.path, tag_data=self.fc_packet)
 
         logger.info(f'TagResult saved to {self.tag_result.path}')
         print(f'TagResult saved to {self.tag_result.path}')
@@ -332,6 +332,9 @@ class TagbioData:
     def __init__(self, fc_packet):
         self.fc_packet = FCPacket(fc_packet)
         self.passthrough_arguments = self.fc_packet.passthrough_arguments
+        # lets reports built in this process fill their header (user, app link, data date)
+        from tagbiopy.report import set_current_packet
+        set_current_packet(self.fc_packet)
 
         self._q_request = None
         self._df = None

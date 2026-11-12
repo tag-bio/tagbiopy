@@ -309,20 +309,35 @@ def inspect_function_arguments(func):
     return arguments, defaults
 
 
-def ipynb_to_html(notebook_file, output_file):
+def ipynb_to_html(notebook_file, output_file, title=None, tag_data=None, plain=False):
     """
-    Use to turn a jupyter notebook into an html file embeddable into the front end.
-    Run the following command in shell using subprocess:
-    'jupyter nbconvert --no-input --to html --output <output_file> <notebook_file>'
+    Turn an executed jupyter notebook into an html report embeddable into the front end, with code cells hidden.
 
-    The '--no-input' command-line switch is used to not show the input code from the notebook.
-    The return code of the shell command is checked, and if there are any issues CalledProcessError
-    exception is raised.
+    By default the report is a Tag.bio report page: the same header (title, user, date, data date, app link),
+    table of contents and styling as R Markdown apps (see tagbiopy.report). The title is ``title`` or else the
+    notebook's first heading. The header details come from ``tag_data`` (a TagbioData, FCPacket or packet path)
+    or else from the plugin running in this process.
 
     :param notebook_file: str, path to ipynb
     :param output_file: str, path to the output
+    :param title: str, optional report title
+    :param tag_data: optional TagbioData / FCPacket / packet file path for the header details
+    :param plain: bool, True for the plain nbconvert page (no Tag.bio header)
     :return: None
     """
+    if not plain:
+        try:
+            from tagbiopy.report import notebook_report
+            packet = getattr(tag_data, 'fc_packet', tag_data)
+            if isinstance(packet, str):
+                from tagbiopy.protocol import FCPacket
+                packet = FCPacket(packet)
+            notebook_report(notebook_file, output_file, title=title, fc_packet=packet)
+            return
+        except Exception as e:
+            # never fail an app over its look: fall back to the plain page
+            logger.warning(f'Tag.bio report page failed ({e!r}); writing the plain nbconvert page instead')
+
     import subprocess
     import shutil
 
