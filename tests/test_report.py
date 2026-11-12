@@ -60,3 +60,26 @@ def test_tag_report_and_banner(tmp_path):
     # the notice opens the content: after the header and table of contents, before the first section
     assert page.index('<section class="main-content"><div>NOTICE</div>') > page.index('id="TOC"')
     assert page.index('NOTICE') < page.rindex('Results')
+
+
+def test_falls_back_to_plain_page_when_report_fails(tmp_path, monkeypatch):
+    calls = []
+
+    def fail(*args, **kwargs):
+        raise RuntimeError('boom')
+
+    class Done:
+        def check_returncode(self):
+            return None
+
+    def fake_run(cmd):
+        calls.append(cmd)
+        (tmp_path / 'out.html.html').write_text('<html>plain</html>')
+        return Done()
+
+    monkeypatch.setattr(report, 'notebook_report', fail)
+    monkeypatch.setattr('subprocess.run', fake_run)
+    out = tmp_path / 'out.html'
+    ipynb_to_html(make_notebook(tmp_path), str(out))
+    assert calls and calls[0][:2] == ['jupyter', 'nbconvert']
+    assert out.read_text() == '<html>plain</html>'

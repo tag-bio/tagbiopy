@@ -326,13 +326,17 @@ def ipynb_to_html(notebook_file, output_file, title=None, tag_data=None, plain=F
     :return: None
     """
     if not plain:
-        from tagbiopy.report import notebook_report
-        packet = getattr(tag_data, 'fc_packet', tag_data)
-        if isinstance(packet, str):
-            from tagbiopy.protocol import FCPacket
-            packet = FCPacket(packet)
-        notebook_report(notebook_file, output_file, title=title, fc_packet=packet)
-        return
+        try:
+            from tagbiopy.report import notebook_report
+            packet = getattr(tag_data, 'fc_packet', tag_data)
+            if isinstance(packet, str):
+                from tagbiopy.protocol import FCPacket
+                packet = FCPacket(packet)
+            notebook_report(notebook_file, output_file, title=title, fc_packet=packet)
+            return
+        except Exception as e:
+            # never fail an app over its look: fall back to the plain page
+            logger.warning(f'Tag.bio report page failed ({e!r}); writing the plain nbconvert page instead')
 
     import subprocess
     import shutil

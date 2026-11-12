@@ -11,7 +11,8 @@ See the project's git history and release tags for the full change record
 * Python reports get the Tag.bio report page of R Markdown apps (``tagbio::tag_report``): the header with title,
   user, date, data date and app link, a numbered table of contents, Barlow fonts and the same styling, in one
   self-contained HTML file. ``ipynb_to_html()`` produces it by default (title = ``title`` or the notebook's first
-  heading); ``plain=True`` gives the previous plain nbconvert page. ``.py`` plugins that write their own HTML can
+  heading); ``plain=True`` gives the previous plain nbconvert page, which is also
+  written if building the report page fails. ``.py`` plugins that write their own HTML can
   call ``tagbiopy.report.tag_report(body_html, title, output_file=tag_result.path)``, and
   ``tagbiopy.report.insert_banner()`` adds a notice at the top of a report's content.
 * ``nbconvert`` is now a declared dependency, in ``environment.yml`` and ``setup.cfg`` (``ipynb_to_html`` imports it).
