@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import sys
 
 from typing import Dict
 
@@ -105,6 +106,11 @@ def main():
     # falls back to ~/.tagbio.json for connection/auth: a plugin's credentials come only from the
     # engine packet (host + the invoking user's token). Mirrors connect_tagbio.R in the R SDK.
     os.environ['TAGBIO_PLUGIN_CONTEXT'] = '1'
+    # the engine's warm worker: runs each plugin job in a forked child (tagbiopy.worker)
+    if '--worker' in sys.argv[1:]:
+        from tagbiopy import worker
+        worker.main(sys.argv[1:])
+        return
     try:
         run()
     except Exception as e:

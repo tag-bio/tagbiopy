@@ -5,6 +5,15 @@ Changelog
 See the project's git history and release tags for the full change record
 (the package version is tracked in ``src/tagbiopy/__init__.py``).
 
+2026-11-13 (1.1.16)
+===================
+
+* ``connect_tagbio_py --worker`` runs the FC engine's warm plugin worker (``tagbiopy.worker``): one long-lived
+  process that imports the SDK and its common libraries once and runs each plugin job in a fresh forked child
+  (its own working directory, output files and random state). The engine starts it itself (``plugin_workers``
+  server argument, default on); plugins need no change. Running ``connect_tagbio_py`` for a single plugin is
+  unchanged.
+
 2026-11-12 (1.1.15)
 ===================
 
