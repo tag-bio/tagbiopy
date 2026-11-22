@@ -75,6 +75,89 @@ def drop_retired_arguments(kwargs: dict, where: str) -> dict:
     return kwargs
 
 
+def _collapse_lists_by_row(column):
+    """A LIST column as "; "-joined strings, row by row in Python (a null inside a list joins as "")."""
+    import datetime
+
+    import numpy as np
+
+    # native Parquet dates in a multi-value column keep the engine's yyyy/MM/dd label form
+    def _cell_text(x):
+        if x is None:
+            return ""
+        if isinstance(x, datetime.date):
+            return x.strftime('%Y/%m/%d')
+        return str(x)
+
+    def _collapse_cell(v):
+        if v is None:
+            return ""
+        if isinstance(v, (list, tuple, np.ndarray)):
+            return "; ".join(_cell_text(x) for x in v)
+        return v
+
+    return column.to_pandas().map(_collapse_cell).values
+
+
+def _parquet_to_dataframe(content, categories=False) -> pd.DataFrame:
+    """A Parquet download as a DataFrame shaped like the CSV path's, with column kinds taken from the schema.
+
+    A multi-value (non-exclusive) categorical is written as parquet LIST<string>; the CSV path delivers the
+    same data as one string joined with "; ". Those columns are joined to that exact form in Arrow (a column
+    holding a null inside a list takes the row-by-row path), so plugins doing string ops on a multi-value
+    categorical work on either path. Native DATE columns become UTC-midnight datetimes, BOOLEAN columns
+    pandas' nullable 'boolean'; a column of only nulls keeps its None values.
+    """
+    import io
+
+    import pyarrow as pa
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(io.BytesIO(content))
+    by_row = {}
+    dates = []
+    logicals = []
+    for index, field in enumerate(table.schema):
+        column = table.column(index)
+        present = len(column) == 0 or column.null_count < len(column)
+        if pa.types.is_list(field.type) or pa.types.is_large_list(field.type):
+            if column.null_count == len(column):
+                continue
+            value_type = field.type.value_type
+            is_date = pa.types.is_date(value_type)
+            # Arrow joins only text lists exactly; numbers, logicals and nulls inside a list take the per-row form
+            joinable = is_date or pa.types.is_string(value_type) or pa.types.is_large_string(value_type)
+            if not joinable or pc.list_flatten(column).null_count > 0:
+                by_row[field.name] = _collapse_lists_by_row(column)
+                continue
+            values = pc.cast(column, pa.list_(pa.string())) if is_date else column
+            text = pc.binary_join(values, "; ")
+            if is_date:
+                text = pc.replace_substring(text, "-", "/")
+            table = table.set_column(index, field.name, pc.fill_null(text, ""))
+        elif pa.types.is_date(field.type) and column.null_count < len(column):
+            dates.append(field.name)
+        elif pa.types.is_boolean(field.type) and present:
+            logicals.append(field.name)
+    _df = table.to_pandas()
+    for name, values in by_row.items():
+        _df[name] = values
+    for name in dates:
+        _df[name] = pd.to_datetime(_df[name], utc=True)
+    for name in logicals:
+        _df[name] = _df[name].astype('boolean')
+    # opt-in: single_valued text categoricals (named in the file's tagbio.single_valued metadata) as
+    # 'category'; date and logical columns keep their own types
+    if categories:
+        _single_valued = (table.schema.metadata or {}).get(b'tagbio.single_valued')
+        if _single_valued:
+            for _col in json.loads(_single_valued):
+                if _col in _df.columns and _df[_col].dtype == object:
+                    _df[_col] = _df[_col].astype('category')
+    return _df
+
+
 def content_to_dataframe(content, index=None, categories=False, **kwargs) -> pd.DataFrame:
     """Take POST content and turns it into a dataframe. Attempt to set dataframe
     index to default ('Unique ID'), and if that fails, just return the dataframe
@@ -94,60 +177,12 @@ def content_to_dataframe(content, index=None, categories=False, **kwargs) -> pd.
     if isinstance(content, (bytes, bytearray)) and content[:4] == b'PAR1':
         logger.debug(f'Detected parquet response (PAR1); reading with pyarrow')
         try:
-            _df = pd.read_parquet(io.BytesIO(content))
+            _df = _parquet_to_dataframe(content, categories)
         except ImportError as e:
             raise ImportError(
                 "Reading a parquet download requires pyarrow. "
                 "Install with: pip install 'tagbiopy[parquet]' (or pip install pyarrow)") from e
         logger.debug(f'Parquet content turned into a {_df.shape} dataframe')
-        # A multi-value (non-exclusive) categorical is written as parquet LIST<string> and arrives as
-        # list/array cells; the CSV path delivers the same data as one string joined with "; ". Collapse
-        # those columns to that exact form so the parquet frame is shape-identical to CSV -- otherwise
-        # every plugin doing a string op on a multi-value categorical breaks (e.g. `col == ""` on a list).
-        import numpy as np
-
-        import datetime
-
-        # native Parquet dates in a multi-value column keep the engine's yyyy/MM/dd label form
-        def _cell_text(x):
-            if x is None:
-                return ""
-            if isinstance(x, datetime.date):
-                return x.strftime('%Y/%m/%d')
-            return str(x)
-
-        def _collapse_cell(v):
-            if v is None:
-                return ""
-            if isinstance(v, (list, tuple, np.ndarray)):
-                return "; ".join(_cell_text(x) for x in v)
-            return v
-
-        for _col in _df.columns:
-            if _df[_col].dtype == object and \
-                    _df[_col].map(lambda x: isinstance(x, (list, tuple, np.ndarray))).any():
-                _df[_col] = _df[_col].map(_collapse_cell)
-        # native Parquet DATE columns arrive as Python date objects; make them UTC-midnight datetimes so
-        # they compare and subtract directly with the (UTC) timestamp columns
-        for _col in _df.columns:
-            if _df[_col].dtype == object and _df[_col].map(lambda x: isinstance(x, datetime.date)).any():
-                _df[_col] = pd.to_datetime(_df[_col], utc=True)
-        # native Parquet BOOLEAN columns (logical collections) arrive as bool, or as object when they hold nulls;
-        # give them pandas' nullable 'boolean' dtype either way
-        for _col in _df.columns:
-            if _df[_col].dtype == bool or (_df[_col].dtype == object and _df[_col].notna().any() and
-                                           _df[_col].dropna().map(lambda x: isinstance(x, (bool, np.bool_))).all()):
-                _df[_col] = _df[_col].astype('boolean')
-        # opt-in: single_valued text categoricals (named in the file's tagbio.single_valued metadata) as
-        # 'category'; date and logical columns keep their own types
-        if categories:
-            import pyarrow.parquet as pq
-            _meta = pq.read_metadata(io.BytesIO(content)).metadata or {}
-            _single_valued = _meta.get(b'tagbio.single_valued')
-            if _single_valued:
-                for _col in json.loads(_single_valued):
-                    if _col in _df.columns and _df[_col].dtype == object:
-                        _df[_col] = _df[_col].astype('category')
     else:
         logger.debug(f'Encode content')
         encoded_content = str(content, 'utf-8')

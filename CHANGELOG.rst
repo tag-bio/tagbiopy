@@ -5,6 +5,14 @@ Changelog
 See the project's git history and release tags for the full change record
 (the package version is tracked in ``src/tagbiopy/__init__.py``).
 
+2026-11-22 (1.1.17)
+===================
+
+* Parquet downloads convert to a DataFrame from the file's Arrow schema instead of per cell: multi-value
+  (list) columns are joined to the ``"; "`` text form inside Arrow, and date, logical and ``categories=True``
+  columns are typed from the schema. The DataFrame is unchanged; large downloads with list columns convert
+  several times faster.
+
 2026-11-13 (1.1.16)
 ===================
 
